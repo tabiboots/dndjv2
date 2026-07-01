@@ -26,15 +26,10 @@ export default function SongChip({
 }) {
   const thumb = track.album.images.at(-1)?.url
 
-  const handleClick = () => {
-    if (isActive) onPause?.()
-    else onClick?.(track)
-  }
-
   return (
     <li className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all ${isActive ? 'bg-gray-200 border-white shadow-inner' : 'bg-gray-100 border-gray-300 shadow-md'}`}>
       <button
-        onClick={handleClick}
+        onClick={isActive ? onPause : () => onClick?.(track)}
         className="group relative w-9 h-9 shrink-0 rounded bg-gray-200 border border-gray-200 shadow-inner overflow-hidden"
       >
         {thumb && <img src={thumb} alt="" className="w-full h-full object-cover" />}
@@ -63,7 +58,6 @@ export default function SongChip({
       </div>
       <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
       <button
-        onClick={e => e.stopPropagation()}
         className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 border border-gray-300 shadow-md text-gray-500 hover:text-black transition-all active:shadow-inner active:scale-[0.97] active:bg-gray-200"
       >
         <svg width="50%" height="50%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

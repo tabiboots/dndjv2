@@ -2,15 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-export interface SpotifyPlayerState {
-  player: Spotify.Player | null
-  deviceId: string | null
-  isReady: boolean
-  playbackState: Spotify.PlaybackState | null
-  error: string | null
-}
-
-export function useSpotifyPlayer(): SpotifyPlayerState {
+export function useSpotifyPlayer() {
   const [isReady, setIsReady] = useState(false)
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [playbackState, setPlaybackState] = useState<Spotify.PlaybackState | null>(null)

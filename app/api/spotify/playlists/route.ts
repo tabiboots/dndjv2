@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const querySchema = z.object({
-  userId: z.string().min(1).optional(),
+  userId: z.string().optional(),
 })
 
 export async function GET(request: NextRequest) {
