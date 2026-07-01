@@ -7,12 +7,14 @@ export interface SpotifyPlayerState {
   deviceId: string | null
   isReady: boolean
   playbackState: Spotify.PlaybackState | null
+  error: string | null
 }
 
 export function useSpotifyPlayer(): SpotifyPlayerState {
   const [isReady, setIsReady] = useState(false)
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [playbackState, setPlaybackState] = useState<Spotify.PlaybackState | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const playerRef = useRef<Spotify.Player | null>(null)
 
   useEffect(() => {
@@ -21,8 +23,9 @@ export function useSpotifyPlayer(): SpotifyPlayerState {
         name: 'dndj',
         getOAuthToken: async (cb) => {
           const res = await fetch('/api/spotify/token')
-          const data = await res.json()
-          cb(data.access_token)
+          if (!res.ok) { window.location.href = '/login'; return }
+          const { access_token } = await res.json()
+          cb(access_token)
         },
         volume: 0.5,
       })
@@ -30,6 +33,7 @@ export function useSpotifyPlayer(): SpotifyPlayerState {
       player.addListener('ready', ({ device_id }) => {
         setDeviceId(device_id)
         setIsReady(true)
+        setError(null)
       })
 
       player.addListener('not_ready', () => {
@@ -40,7 +44,30 @@ export function useSpotifyPlayer(): SpotifyPlayerState {
         setPlaybackState(state)
       })
 
-      player.connect()
+      player.addListener('initialization_error', ({ message }) => {
+        setError(`Player failed to initialize: ${message}`)
+      })
+
+      player.addListener('authentication_error', ({ message }) => {
+        setError(`Authentication failed: ${message}`)
+        window.location.href = '/login'
+      })
+
+      player.addListener('account_error', ({ message }) => {
+        setError(`Spotify Premium required: ${message}`)
+      })
+
+      player.addListener('playback_error', ({ message }) => {
+        setError(`Playback error: ${message}`)
+      })
+
+      player.addListener('autoplay_failed', () => {
+        setError('Autoplay blocked — click play to start')
+      })
+
+      player.connect().then(ok => {
+        if (!ok) setError('Failed to connect to Spotify')
+      })
       playerRef.current = player
     }
 
@@ -62,5 +89,5 @@ export function useSpotifyPlayer(): SpotifyPlayerState {
     }
   }, [])
 
-  return { player: playerRef.current, deviceId, isReady, playbackState }
+  return { player: playerRef.current, deviceId, isReady, playbackState, error }
 }

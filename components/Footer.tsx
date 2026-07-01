@@ -14,12 +14,13 @@ interface Props {
   playbackState: Spotify.PlaybackState | null
   isReady: boolean
   fallbackTrack?: DisplayTrack | null
+  error?: string | null
   views: readonly string[]
   active: string
   onViewChange: (view: string) => void
 }
 
-export default function Footer({ player, playbackState, isReady, fallbackTrack, views, active, onViewChange }: Props) {
+export default function Footer({ player, playbackState, isReady, fallbackTrack, error, views, active, onViewChange }: Props) {
   const sdkTrack = playbackState?.track_window.current_track ?? null
   const track: DisplayTrack | null = sdkTrack ?? (isReady ? fallbackTrack ?? null : null)
   const activeIndex = views.indexOf(active)
@@ -29,7 +30,7 @@ export default function Footer({ player, playbackState, isReady, fallbackTrack, 
 
       {/* Left: track info */}
       <div className="flex-1 flex items-center px-4 min-w-0">
-        <TrackChip track={track} isReady={isReady} />
+        <TrackChip track={track} isReady={isReady} error={error} />
       </div>
 
       {/* Center: controls + progress */}

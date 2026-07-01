@@ -3,9 +3,10 @@ import type { DisplayTrack } from './Footer'
 interface Props {
   track: DisplayTrack | null
   isReady: boolean
+  error?: string | null
 }
 
-export default function TrackChip({ track, isReady }: Props) {
+export default function TrackChip({ track, isReady, error }: Props) {
   const albumArt = track?.album.images[0]?.url
 
   return (
@@ -22,8 +23,8 @@ export default function TrackChip({ track, isReady }: Props) {
             </p>
           </>
         ) : (
-          <p className="text-sm text-gray-300">
-            {isReady ? 'Nothing playing' : 'Connecting…'}
+          <p className={`text-sm truncate ${error ? 'text-red-400' : 'text-gray-300'}`}>
+            {error ?? (isReady ? 'Nothing playing' : 'Connecting…')}
           </p>
         )}
       </div>
