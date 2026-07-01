@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import SongChip, { type Track } from '@/components/SongChip'
+import TagPanel from '@/components/TagPanel'
 
 export default function SearchView() {
   const [query, setQuery] = useState('')
@@ -12,6 +13,7 @@ export default function SearchView() {
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [playingUri, setPlayingUri] = useState<string | null>(null)
+  const [taggedTrack, setTaggedTrack] = useState<Track | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -118,22 +120,32 @@ export default function SearchView() {
       {tracks.length > 0 && (
         <>
           <h2 className="px-4 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-widest">Results</h2>
-          <ul
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto flex flex-col gap-2 px-3 pb-3"
-          >
-            {tracks.map(track => (
-              <SongChip
-                key={track.id}
-                track={track}
-                isActive={playingUri === track.uri}
-                onClick={playTrack}
-                onPause={pauseTrack}
-              />
-            ))}
+          <div className="flex-1 flex flex-row overflow-hidden">
+            <ul
+              onScroll={handleScroll}
+              className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              style={{ width: taggedTrack ? '70%' : '100%' }}
+            >
+              {tracks.map(track => (
+                <SongChip
+                  key={track.id}
+                  track={track}
+                  isActive={playingUri === track.uri}
+                  onClick={playTrack}
+                  onPause={pauseTrack}
+                  onTag={setTaggedTrack}
+                />
+              ))}
+              {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
+            </ul>
 
-            {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
-          </ul>
+            <div
+              className="overflow-hidden transition-all duration-300 border-l border-gray-200"
+              style={{ width: taggedTrack ? '30%' : '0' }}
+            >
+              {taggedTrack && <TagPanel track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
+            </div>
+          </div>
         </>
       )}
     </div>

@@ -18,11 +18,13 @@ export default function SongChip({
   isActive,
   onClick,
   onPause,
+  onTag,
 }: {
   track: Track
   isActive?: boolean
   onClick?: (track: Track) => void
   onPause?: () => void
+  onTag?: (track: Track) => void
 }) {
   const thumb = track.album.images.at(-1)?.url
 
@@ -58,6 +60,7 @@ export default function SongChip({
       </div>
       <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
       <button
+        onClick={() => onTag?.(track)}
         className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 border border-gray-300 shadow-md text-gray-500 hover:text-black transition-all active:shadow-inner active:scale-[0.97] active:bg-gray-200"
       >
         <svg width="50%" height="50%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
