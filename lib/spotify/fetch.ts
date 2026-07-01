@@ -1,10 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { SpotifyError } from '@/types/spotify'
 
-export async function spotifyFetch(
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
+export async function getSpotifyToken(): Promise<string> {
   const supabase = await createClient()
 
   const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -22,42 +19,49 @@ export async function spotifyFetch(
     throw new SpotifyError('No Spotify tokens found', 401, 'unauthenticated')
   }
 
-  let accessToken = tokenRow.access_token
-
-  if (new Date(tokenRow.expires_at) <= new Date()) {
-    const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(
-          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-        ).toString('base64')}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: tokenRow.refresh_token,
-      }),
-    })
-
-    if (!tokenRes.ok) {
-      const body = await tokenRes.json().catch(() => ({}))
-      if (body.error === 'invalid_grant') {
-        await supabase.from('spotify_tokens').delete().eq('user_id', user.id)
-      }
-      throw new SpotifyError('Spotify token refresh failed', 401, 'unauthenticated')
-    }
-
-    const { access_token, expires_in, refresh_token } = await tokenRes.json()
-
-    await supabase.from('spotify_tokens').update({
-      access_token,
-      refresh_token: refresh_token ?? tokenRow.refresh_token,
-      expires_at:    new Date(Date.now() + expires_in * 1000).toISOString(),
-      updated_at:    new Date().toISOString(),
-    }).eq('user_id', user.id)
-
-    accessToken = access_token
+  if (new Date(tokenRow.expires_at) > new Date()) {
+    return tokenRow.access_token
   }
+
+  const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${Buffer.from(
+        `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+      ).toString('base64')}`,
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: tokenRow.refresh_token,
+    }),
+  })
+
+  if (!tokenRes.ok) {
+    const body = await tokenRes.json().catch(() => ({}))
+    if (body.error === 'invalid_grant') {
+      await supabase.from('spotify_tokens').delete().eq('user_id', user.id)
+    }
+    throw new SpotifyError('Spotify token refresh failed', 401, 'unauthenticated')
+  }
+
+  const { access_token, expires_in, refresh_token } = await tokenRes.json()
+
+  await supabase.from('spotify_tokens').update({
+    access_token,
+    refresh_token: refresh_token ?? tokenRow.refresh_token,
+    expires_at:    new Date(Date.now() + expires_in * 1000).toISOString(),
+    updated_at:    new Date().toISOString(),
+  }).eq('user_id', user.id)
+
+  return access_token
+}
+
+export async function spotifyFetch(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const accessToken = await getSpotifyToken()
 
   let res: Response
   try {
