@@ -1,14 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import NowPlaying, { type DisplayTrack } from '@/components/NowPlaying'
+import Footer, { type DisplayTrack } from '@/components/Footer'
+import SearchView from '@/components/views/Search'
+import TagsView from '@/components/views/Tags'
+import DeployView from '@/components/views/Deploy'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
 
 const VIEWS = ['Search', 'Tags', 'Deploy'] as const
+type View = typeof VIEWS[number]
 
 export default function Home() {
   const { player, deviceId, isReady, playbackState } = useSpotifyPlayer()
-  const [activeView, setActiveView] = useState<string>(VIEWS[0])
+  const [activeView, setActiveView] = useState<View>('Search')
   const [fallbackTrack, setFallbackTrack] = useState<DisplayTrack | null>(null)
 
   useEffect(() => {
@@ -38,17 +42,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <main className="flex-1 flex flex-col items-center justify-center">
-        <p className="text-sm text-gray-400">{activeView}</p>
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {activeView === 'Search' && <SearchView />}
+        {activeView === 'Tags' && <TagsView />}
+        {activeView === 'Deploy' && <DeployView />}
       </main>
-      <NowPlaying
+      <Footer
         player={player}
         playbackState={playbackState}
         isReady={isReady}
         fallbackTrack={fallbackTrack}
         views={VIEWS}
         active={activeView}
-        onViewChange={setActiveView}
+        onViewChange={(v) => setActiveView(v as View)}
       />
     </div>
   )
