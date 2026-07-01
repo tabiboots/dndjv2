@@ -2,17 +2,25 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+export interface DisplayTrack {
+  name: string
+  artists: { name: string }[]
+  album: { images: { url: string }[] }
+}
+
 interface Props {
   player: Spotify.Player | null
   playbackState: Spotify.PlaybackState | null
   isReady: boolean
+  fallbackTrack?: DisplayTrack | null
   views: readonly string[]
   active: string
   onViewChange: (view: string) => void
 }
 
-export default function NowPlaying({ player, playbackState, isReady, views, active, onViewChange }: Props) {
-  const track = playbackState?.track_window.current_track ?? null
+export default function NowPlaying({ player, playbackState, isReady, fallbackTrack, views, active, onViewChange }: Props) {
+  const sdkTrack = playbackState?.track_window.current_track ?? null
+  const track: DisplayTrack | null = sdkTrack ?? (isReady ? fallbackTrack ?? null : null)
   const isPaused = playbackState?.paused ?? true
   const position = playbackState?.position ?? 0
   const duration = playbackState?.duration ?? 1
