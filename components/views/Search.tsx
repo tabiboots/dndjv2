@@ -1,20 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-
-interface Track {
-  id: string
-  name: string
-  artists: { name: string }[]
-  album: { images: { url: string }[] }
-  duration_ms: number
-}
-
-function msToMinSec(ms: number) {
-  const m = Math.floor(ms / 60000)
-  const s = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0')
-  return `${m}:${s}`
-}
+import SongChip, { type Track } from '@/components/SongChip'
 
 export default function SearchView() {
   const [query, setQuery] = useState('')
@@ -24,6 +11,7 @@ export default function SearchView() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [playingUri, setPlayingUri] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -77,6 +65,25 @@ export default function SearchView() {
     }, 300)
   }
 
+  const playTrack = async (track: Track) => {
+    const res = await fetch('/api/spotify/player/play', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uri: track.uri }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: 'Playback failed' }))
+      setError(error ?? 'Playback failed')
+    } else {
+      setPlayingUri(track.uri)
+    }
+  }
+
+  const pauseTrack = async () => {
+    await fetch('/api/spotify/player/pause', { method: 'PUT' })
+    setPlayingUri(null)
+  }
+
   const handleScroll = async (e: React.UIEvent<HTMLUListElement>) => {
     if (!hasMore || loadingMore) return
     const el = e.currentTarget
@@ -115,24 +122,16 @@ export default function SearchView() {
             onScroll={handleScroll}
             className="flex-1 overflow-y-auto flex flex-col gap-2 px-3 pb-3"
           >
-            {tracks.map(track => {
-              const thumb = track.album.images.at(-1)?.url
-              return (
-                <li
-                  key={track.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-100 border border-gray-300 shadow-md"
-                >
-                  <div className="w-9 h-9 shrink-0 rounded bg-gray-200 border border-gray-200 shadow-inner overflow-hidden">
-                    {thumb && <img src={thumb} alt="" className="w-full h-full object-cover" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-black truncate">{track.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
-                  </div>
-                  <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
-                </li>
-              )
-            })}
+            {tracks.map(track => (
+              <SongChip
+                key={track.id}
+                track={track}
+                isActive={playingUri === track.uri}
+                onClick={playTrack}
+                onPause={pauseTrack}
+              />
+            ))}
+
             {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
           </ul>
         </>
