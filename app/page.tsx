@@ -41,7 +41,7 @@ export default function Home() {
   }, [isReady])
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
         {activeView === 'Search' && <SearchView />}
         {activeView === 'Tags' && <TagsView />}

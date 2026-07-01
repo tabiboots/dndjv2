@@ -59,27 +59,34 @@ export default function SearchView() {
 
       {loading && <p className="text-xs text-gray-400 px-3 py-2">Searching…</p>}
       {error && <p className="text-xs text-red-400 px-3 py-2">{error}</p>}
-
-      <ul className="flex-1 overflow-y-auto flex flex-col gap-2 px-3 pb-3">
-        {tracks.map(track => {
-          const thumb = track.album.images.at(-1)?.url
-          return (
-            <li
-              key={track.id}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-100 border border-gray-300 shadow-md"
-            >
-              <div className="w-9 h-9 shrink-0 rounded bg-gray-200 border border-gray-200 shadow-inner overflow-hidden">
-                {thumb && <img src={thumb} alt="" className="w-full h-full object-cover" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-black truncate">{track.name}</p>
-                <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
-              </div>
-              <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
+      {tracks.length > 0 && (
+        <>
+          <h2 className="px-4 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-widest">Results</h2>
+          <ul className="flex-1 overflow-y-auto flex flex-col gap-2 px-3 pb-3">
+            {tracks.map(track => {
+              const thumb = track.album.images.at(-1)?.url
+              return (
+                <li
+                  key={track.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-100 border border-gray-300 shadow-md"
+                >
+                  <div className="w-9 h-9 shrink-0 rounded bg-gray-200 border border-gray-200 shadow-inner overflow-hidden">
+                    {thumb && <img src={thumb} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-black truncate">{track.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
+                </li>
+              )
+            })}
+            <li className="flex items-center px-3 py-2 rounded-xl bg-red-500 border border-red-600 shadow-md">
+              <p className="text-sm font-medium text-white">sentinel</p>
             </li>
-          )
-        })}
-      </ul>
+          </ul>
+        </>
+      )}
     </div>
   )
 }
