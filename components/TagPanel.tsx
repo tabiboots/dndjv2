@@ -10,10 +10,10 @@ export default function TagPanel({ track, onClose }: { track: Track; onClose: ()
         <IconButton onClick={onClose} className="w-7 h-7 text-sm">×</IconButton>
       </div>
 
-      <div className="flex flex-col gap-2 items-center">
-        {art && <img src={art} alt="" className="w-40 aspect-square object-cover rounded-lg shadow-xl border-3 border-gray-200" />}
-        <p className="text-sm font-medium text-black truncate">{track.name}</p>
-        <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
+      <div className="flex flex-col gap-1 items-center">
+        {art && <img src={art} alt="" className="w-40 aspect-square object-cover rounded-lg shadow-xl border-2 border-gray-200" />}
+        <p className="text-medium pt-2 font-medium text-black truncate">{track.name}</p>
+        <p className="text-sm text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
       </div>
       <div className="mt-auto pb-4">
         <form className="flex flex-row items-center justify-around">
