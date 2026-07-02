@@ -151,7 +151,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
             ) : (
               <>
                 {query.trim().length >= 2 && (loading || albums.length > 0) && (
-                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
                     {loading
                       ? Array.from({ length: 4 }).map((_, i) => <MediaChipSkeleton key={i} />)
                       : albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)
@@ -159,13 +159,13 @@ export default function SearchView({ visible }: { visible?: boolean }) {
                   </div>
                 )}
                 {!loading && query.trim().length < 2 && playlists.length > 0 && (
-                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
                     {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images[0]?.url} onClick={() => setSelected(p)} />)}
                   </div>
                 )}
                 <ul
                   onScroll={handleScroll}
-                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_bottom,transparent,black_20px)]"
+                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 scrollbar-none [&::-webkit-scrollbar]:hidden mask-[linear-gradient(to_bottom,transparent,black_20px)]"
                 >
                   {loading
                     ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)

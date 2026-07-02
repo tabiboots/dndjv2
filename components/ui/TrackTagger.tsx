@@ -93,7 +93,7 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
         <p className="text-sm text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-wrap content-start gap-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex-1 overflow-y-auto flex flex-wrap content-start gap-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden">
         {tags.map(tag => (
           <button key={tag.id} onClick={() => toggle(tag)}>
             <TagChip id={tag.id} name={tag.name} active={applied.has(tag.id)} />
