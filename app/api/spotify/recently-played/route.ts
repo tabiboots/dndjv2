@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const res = await spotifyFetch('/v1/me/player/recently-played?limit=10')
+    const res = await spotifyFetch('/v1/me/player/recently-played?limit=50')
     const data = await res.json()
     return NextResponse.json({ success: true, data })
   } catch (err) {

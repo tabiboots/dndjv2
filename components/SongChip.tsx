@@ -1,14 +1,6 @@
 import type { ReactNode } from 'react'
-import IconButton from './IconButton'
-
-interface Track {
-  id: string | null
-  name: string
-  artists: { name: string }[]
-  album: { images: { url: string }[] }
-  duration_ms: number
-  uri: string
-}
+import type { Track } from '@/types/spotify'
+import IconButton from '@/components/ui/IconButton'
 
 function msToMinSec(ms: number) {
   const m = Math.floor(ms / 60000)
@@ -76,5 +68,3 @@ export function TagButton({ onClick }: { onClick: () => void }) {
     </IconButton>
   )
 }
-
-export type { Track }

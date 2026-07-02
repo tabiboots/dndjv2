@@ -1,4 +1,5 @@
-import SongChip, { type Track } from '@/components/SongChip'
+import type { Track } from '@/types/spotify'
+import SongChip from '@/components/SongChip'
 
 export default function DeployView({ currentTrack }: { currentTrack: Track | null }) {
   return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import IconButton from './IconButton'
+import IconButton from '@/components/ui/IconButton'
 
 interface Props {
   player: Spotify.Player | null

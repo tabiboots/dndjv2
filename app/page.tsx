@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Footer, { type DisplayTrack } from '@/components/Footer'
+import Footer, { type DisplayTrack } from '@/components/footer/Footer'
 import SearchView from '@/components/views/Search'
 import TagsView from '@/components/views/Tags'
 import DeployView from '@/components/views/Deploy'
@@ -43,7 +43,7 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
-        {activeView === 'Search' && <SearchView />}
+        <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
         {activeView === 'Tags' && <TagsView />}
         {activeView === 'Deploy' && <DeployView currentTrack={playbackState?.track_window?.current_track ?? null} />}
       </main>

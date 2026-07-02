@@ -1,12 +1,17 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import SongChip, { TagButton, type Track } from '@/components/SongChip'
+import { useEffect, useRef, useState } from 'react'
+import type { Track, Album, Playlist } from '@/types/spotify'
+import SongChip, { TagButton } from '@/components/SongChip'
 import TagPanel from '@/components/TagPanel'
+import AlbumChip from '@/components/AlbumChip'
+import PlaylistChip from '@/components/PlaylistChip'
 
-export default function SearchView() {
+export default function SearchView({ visible }: { visible?: boolean }) {
   const [query, setQuery] = useState('')
   const [tracks, setTracks] = useState<Track[]>([])
+  const [albums, setAlbums] = useState<Album[]>([])
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,9 +23,27 @@ export default function SearchView() {
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const loadRecent = () => {
+    Promise.all([
+      fetch('/api/spotify/recently-played').then(r => r.json()),
+      fetch('/api/spotify/playlists').then(r => r.json()),
+    ]).then(([recentData, playlistData]) => {
+      const seen = new Set<string | null>()
+      const items: Track[] = (recentData.data?.items ?? [])
+        .map((i: { track: Track }) => i.track)
+        .filter((t: Track) => { if (seen.has(t.id)) return false; seen.add(t.id); return true })
+      setTracks(items)
+      setPlaylists(playlistData.data?.items ?? [])
+    }).catch(() => {})
+  }
+
+  useEffect(() => {
+    if (visible && query.trim().length < 2) loadRecent()
+  }, [visible])
+
   const fetchPage = async (q: string, off: number, replace: boolean) => {
     const res = await fetch(
-      `/api/spotify/search?q=${encodeURIComponent(q)}&type=track&market=from_token&limit=10&offset=${off}`
+      `/api/spotify/search?q=${encodeURIComponent(q)}&type=track,album&market=from_token&limit=10&offset=${off}`
     )
     const { data, error: apiError, code } = await res.json()
 
@@ -34,6 +57,7 @@ export default function SearchView() {
     const total: number = data?.tracks?.total ?? 0
     const newOffset = off + items.length
 
+    if (replace) setAlbums(data?.albums?.items ?? [])
     setTracks(prev => {
       if (replace) return items
       const seen = new Set(prev.map(t => t.id))
@@ -50,13 +74,14 @@ export default function SearchView() {
 
     const trimmed = value.trim()
     if (trimmed.length < 2) {
-      setTracks([]); setOffset(0); setHasMore(false); setError(null); setLoading(false)
+      setOffset(0); setHasMore(false); setError(null); setLoading(false)
+      loadRecent()
       return
     }
 
     debounceRef.current = setTimeout(async () => {
       abortRef.current = new AbortController()
-      setLoading(true); setError(null); setTracks([]); setOffset(0); setHasMore(false)
+      setLoading(true); setError(null); setOffset(0); setHasMore(false); setAlbums([]); setPlaylists([])
       try {
         await fetchPage(trimmed, 0, true)
       } catch {
@@ -114,17 +139,29 @@ export default function SearchView() {
         />
       </div>
 
-      {loading && <p className="text-xs text-gray-400 px-3 py-2">Searching…</p>}
       {error && <p className="text-xs text-red-400 px-3 py-2">{error}</p>}
 
-      {tracks.length > 0 && (
-        <>
-          <h2 className="px-4 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-widest">Results</h2>
-          <div className="flex-1 flex flex-row overflow-hidden">
+      {(loading || tracks.length > 0 || taggedTrack) && (
+        <div className="flex-1 flex flex-row overflow-hidden">
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden" style={{ width: taggedTrack ? '70%' : '100%' }}>
+              {query.trim().length >= 2 && albums.length > 0 && (
+                <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {albums.map(a => <AlbumChip key={a.id} album={a} />)}
+                </div>
+              )}
+              {query.trim().length < 2 && playlists.length > 0 && (
+                <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {playlists.map(p => <PlaylistChip key={p.id} playlist={p} />)}
+                </div>
+              )}
             <ul
               onScroll={handleScroll}
               className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              style={{ width: taggedTrack ? '70%' : '100%' }}
             >
               {tracks.map(track => (
                 <SongChip
@@ -139,15 +176,16 @@ export default function SearchView() {
               ))}
               {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
             </ul>
-
-            <div
-              className="overflow-hidden transition-all duration-300 border-l border-gray-200"
-              style={{ width: taggedTrack ? '30%' : '0' }}
-            >
-              {taggedTrack && <TagPanel track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
             </div>
+          )}
+
+          <div
+            className="overflow-hidden transition-all duration-300 border-l border-gray-200 ml-auto"
+            style={{ width: taggedTrack ? '30%' : '0' }}
+          >
+            {taggedTrack && <TagPanel track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
           </div>
-        </>
+        </div>
       )}
     </div>
   )
