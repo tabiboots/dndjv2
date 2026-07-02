@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Track, Album, Playlist } from '@/types/spotify'
 import SongChip, { TagButton } from '@/components/SongChip'
 import TagPanel from '@/components/TagPanel'
-import AlbumChip from '@/components/AlbumChip'
-import PlaylistChip from '@/components/PlaylistChip'
+import MediaChip from '@/components/ui/MediaChip'
+import MediaDrilldown from '@/components/ui/MediaDrilldown'
 
 export default function SearchView({ visible }: { visible?: boolean }) {
   const [query, setQuery] = useState('')
@@ -19,6 +19,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [playingUri, setPlayingUri] = useState<string | null>(null)
   const [taggedTrack, setTaggedTrack] = useState<Track | null>(null)
+  const [selected, setSelected] = useState<Album | Playlist | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -69,6 +70,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
 
   const handleQueryChange = (value: string) => {
     setQuery(value)
+    setSelected(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     abortRef.current?.abort()
 
@@ -141,43 +143,47 @@ export default function SearchView({ visible }: { visible?: boolean }) {
 
       {error && <p className="text-xs text-red-400 px-3 py-2">{error}</p>}
 
-      {(loading || tracks.length > 0 || taggedTrack) && (
+      {(selected || loading || tracks.length > 0 || taggedTrack) && (
         <div className="flex-1 flex flex-row overflow-hidden">
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col overflow-hidden" style={{ width: taggedTrack ? '70%' : '100%' }}>
-              {query.trim().length >= 2 && albums.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {albums.map(a => <AlbumChip key={a.id} album={a} />)}
-                </div>
-              )}
-              {query.trim().length < 2 && playlists.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {playlists.map(p => <PlaylistChip key={p.id} playlist={p} />)}
-                </div>
-              )}
-            <ul
-              onScroll={handleScroll}
-              className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {tracks.map(track => (
-                <SongChip
-                  key={track.id}
-                  track={track}
-                  isActive={playingUri === track.uri}
-                  onClick={playTrack}
-                  onPause={pauseTrack}
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ width: taggedTrack ? '70%' : '100%' }}>
+            {selected ? (
+              <MediaDrilldown item={selected} onBack={() => setSelected(null)} onTag={setTaggedTrack} />
+            ) : loading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {query.trim().length >= 2 && albums.length > 0 && (
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)}
+                  </div>
+                )}
+                {query.trim().length < 2 && playlists.length > 0 && (
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images[0]?.url} onClick={() => setSelected(p)} />)}
+                  </div>
+                )}
+                <ul
+                  onScroll={handleScroll}
+                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 >
-                  <TagButton onClick={() => setTaggedTrack(track)} />
-                </SongChip>
-              ))}
-              {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
-            </ul>
-            </div>
-          )}
+                  {tracks.map(track => (
+                    <SongChip
+                      key={track.id}
+                      track={track}
+                      isActive={playingUri === track.uri}
+                      onClick={playTrack}
+                      onPause={pauseTrack}
+                    >
+                      <TagButton onClick={() => setTaggedTrack(track)} />
+                    </SongChip>
+                  ))}
+                  {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
+                </ul>
+              </>
+            )}
+          </div>
 
           <div
             className="overflow-hidden transition-all duration-300 border-l border-gray-200 ml-auto"
