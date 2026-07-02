@@ -59,6 +59,20 @@ export default function SongChip({
   )
 }
 
+export function SongChipSkeleton() {
+  return (
+    <li className="flex items-center gap-3 px-3 py-2 rounded-xl border bg-gray-100 border-gray-300 shadow-md animate-pulse">
+      <div className="w-9 h-9 shrink-0 rounded bg-gray-200 border border-gray-200" />
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        <div className="h-3 w-2/3 rounded bg-gray-100" />
+        <div className="h-2.5 w-1/3 rounded bg-gray-100" />
+      </div>
+      <div className="h-2.5 w-7 rounded bg-gray-100 shrink-0" />
+      <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
+    </li>
+  )
+}
+
 export function TagButton({ onClick }: { onClick: () => void }) {
   return (
     <IconButton onClick={onClick} className="w-9 h-9">

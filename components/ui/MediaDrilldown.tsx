@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Album, Playlist, Track } from '@/types/spotify'
-import SongChip, { TagButton } from '@/components/SongChip'
+import SongChip, { TagButton, SongChipSkeleton } from '@/components/SongChip'
 
 type MediaItem = Album | Playlist
 
@@ -74,15 +74,13 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
-        </div>
-      ) : error ? (
+      {error ? (
         <p className="text-xs text-red-400 px-3 py-3">{error}</p>
       ) : (
         <ul className="overflow-y-auto flex flex-col gap-2 px-3 py-3 scrollbar-none">
-          {tracks.map(track => (
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)
+            : tracks.map(track => (
             <SongChip
               key={track.id}
               track={track}
