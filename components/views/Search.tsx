@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import SongChip, { type Track } from '@/components/SongChip'
+import SongChip, { TagButton, type Track } from '@/components/SongChip'
 import TagPanel from '@/components/TagPanel'
 
 export default function SearchView() {
@@ -133,8 +133,9 @@ export default function SearchView() {
                   isActive={playingUri === track.uri}
                   onClick={playTrack}
                   onPause={pauseTrack}
-                  onTag={setTaggedTrack}
-                />
+                >
+                  <TagButton onClick={() => setTaggedTrack(track)} />
+                </SongChip>
               ))}
               {loadingMore && <li className="text-xs text-gray-400 text-center py-2">Loading more…</li>}
             </ul>
