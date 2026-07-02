@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Album, Playlist, Track } from '@/types/spotify'
-import SongChip, { TagButton, SongChipSkeleton } from '@/components/SongChip'
+import SongChip, { TagButton, SongChipSkeleton } from '@/components/ui/SongChip'
 
 type MediaItem = Album | Playlist
 

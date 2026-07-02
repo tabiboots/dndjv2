@@ -44,8 +44,8 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
         <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
-        {activeView === 'Tags' && <TagsView />}
-        {activeView === 'Deploy' && <DeployView currentTrack={playbackState?.track_window?.current_track ?? null} />}
+        <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView /></div>
+        <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView currentTrack={playbackState?.track_window?.current_track ?? null} /></div>
       </main>
       <Footer
         player={player}

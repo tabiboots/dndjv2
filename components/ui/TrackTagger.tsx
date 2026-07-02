@@ -8,7 +8,7 @@ import TagChip from '@/components/ui/TagChip'
 
 type Tag = { id: string; name: string }
 
-export default function TagPanel({ track, onClose }: { track: Track; onClose: () => void }) {
+export default function TrackTagger({ track, onClose }: { track: Track; onClose: () => void }) {
   const supabase = createClient()
   const art = track.album.images[0]?.url
 

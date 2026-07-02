@@ -1,6 +1,6 @@
 const PALETTE = ['#8b5cf6', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#ec4899', '#a855f7', '#0ea5e9', '#84cc16']
 
-function tagColor(id: string) {
+export function tagColor(id: string) {
   const n = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
   return PALETTE[n % PALETTE.length]
 }

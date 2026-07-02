@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { Track, Album, Playlist } from '@/types/spotify'
-import SongChip, { TagButton, SongChipSkeleton } from '@/components/SongChip'
-import TagPanel from '@/components/TagPanel'
+import SongChip, { TagButton, SongChipSkeleton } from '@/components/ui/SongChip'
+import TrackTagger from '@/components/ui/TrackTagger'
 import MediaChip, { MediaChipSkeleton } from '@/components/ui/MediaChip'
 import MediaDrilldown from '@/components/ui/MediaDrilldown'
 
@@ -165,7 +165,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
                 )}
                 <ul
                   onScroll={handleScroll}
-                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_bottom,transparent,black_20px)]"
                 >
                   {loading
                     ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)
@@ -191,7 +191,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
             className="overflow-hidden transition-all duration-300 border-l border-gray-200 ml-auto"
             style={{ width: taggedTrack ? '30%' : '0' }}
           >
-            {taggedTrack && <TagPanel track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
+            {taggedTrack && <TrackTagger track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
           </div>
         </div>
       )}
