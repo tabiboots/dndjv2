@@ -20,7 +20,7 @@ export default function TagPanel({ track, onClose }: { track: Track; onClose: ()
           <input type="text" placeholder="Create a new tag..." className="w-5/6 px-3 py-3 rounded-full bg-gray-100 border border-gray-300 shadow-inner text-sm outline-none text-black placeholder:text-gray-400" />
           <IconButton type="submit" className="w-12 h-12" onClick={e => e.preventDefault()}>
             <svg width="50%" height="50%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg></IconButton>
         </form>
       </div>

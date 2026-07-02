@@ -45,7 +45,7 @@ export default function Home() {
       <main className="flex-1 overflow-hidden flex flex-col">
         {activeView === 'Search' && <SearchView />}
         {activeView === 'Tags' && <TagsView />}
-        {activeView === 'Deploy' && <DeployView />}
+        {activeView === 'Deploy' && <DeployView currentTrack={playbackState?.track_window?.current_track ?? null} />}
       </main>
       <Footer
         player={player}

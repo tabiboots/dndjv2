@@ -1,7 +1,7 @@
 import IconButton from './IconButton'
 
 interface Track {
-  id: string
+  id: string | null
   name: string
   artists: { name: string }[]
   album: { images: { url: string }[] }
