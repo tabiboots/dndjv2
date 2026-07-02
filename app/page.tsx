@@ -6,6 +6,7 @@ import SearchView from '@/components/views/Search'
 import TagsView from '@/components/views/Tags'
 import DeployView from '@/components/views/Deploy'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
+import { TagDataProvider } from '@/lib/contexts/TagDataContext'
 
 const VIEWS = ['Search', 'Tags', 'Deploy'] as const
 type View = typeof VIEWS[number]
@@ -43,9 +44,11 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
-        <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
-        <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView /></div>
-        <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView currentTrack={playbackState?.track_window?.current_track ?? null} /></div>
+        <TagDataProvider>
+          <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
+          <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView /></div>
+          <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView currentTrack={playbackState?.track_window?.current_track ?? null} /></div>
+        </TagDataProvider>
       </main>
       <Footer
         player={player}

@@ -19,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${nunito.variable} bg-gray-100`}>
-      <body className="bg-gray-100 font-[family-name:var(--font-nunito)]">{children}</body>
+      <body className="bg-gray-100 font-(family-name:--font-nunito)">{children}</body>
     </html>
   )
 }

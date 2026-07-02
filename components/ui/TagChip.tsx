@@ -1,12 +1,15 @@
-const PALETTE = ['#8b5cf6', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#ec4899', '#a855f7', '#0ea5e9', '#84cc16']
+'use client'
 
-export function tagColor(id: string) {
-  const n = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
-  return PALETTE[n % PALETTE.length]
+import { useTagColor } from '@/lib/contexts/TagDataContext'
+
+// ponytail: stable per-id fallback for tags that have no stored color yet
+export function tagColor(id: string): string {
+  const hue = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360
+  return `hsl(${hue}, 65%, 55%)`
 }
 
 export default function TagChip({ id, name, active }: { id: string; name: string; active?: boolean }) {
-  const color = tagColor(id)
+  const color = useTagColor(id) ?? tagColor(id)
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-1 mx-0.5 pr-3 rounded-full bg-gray-100 border border-gray-300 shadow-inner text-xl leading-none text-gray-700 whitespace-nowrap">
       <span

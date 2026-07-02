@@ -68,7 +68,8 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
     const name = newTag.trim()
     if (!userId || !name || !track.id) return
 
-    const { data } = await supabase.from('tags').insert({ name, user_id: userId }).select('id,name').single()
+    const color = `hsl(${Math.floor(Math.random() * 360)}, 65%, 55%)`
+    const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name').single()
     if (!data) return
 
     const err = await upsertTrack()

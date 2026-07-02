@@ -62,6 +62,7 @@ export type Database = {
       tags: {
         Row: {
           category_id: string | null
+          color: string | null
           created_at: string
           id: string
           name: string
@@ -69,6 +70,7 @@ export type Database = {
         }
         Insert: {
           category_id?: string | null
+          color?: string | null
           created_at?: string
           id?: string
           name: string
@@ -76,6 +78,7 @@ export type Database = {
         }
         Update: {
           category_id?: string | null
+          color?: string | null
           created_at?: string
           id?: string
           name?: string

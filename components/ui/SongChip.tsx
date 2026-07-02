@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react'
 import type { Track } from '@/types/spotify'
 import IconButton from '@/components/ui/IconButton'
+import { tagColor } from '@/components/ui/TagChip'
+import { useTag, useTrackTagIds } from '@/lib/contexts/TagDataContext'
+
+function Dot({ tagId }: { tagId: string }) {
+  const tag = useTag(tagId)
+  const color = tag?.color ?? tagColor(tagId)
+  return <span title={tag?.name} className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+}
 
 function msToMinSec(ms: number) {
   const m = Math.floor(ms / 60000)
@@ -22,6 +30,7 @@ export default function SongChip({
   children?: ReactNode
 }) {
   const thumb = track.album.images.at(-1)?.url
+  const tagIds = useTrackTagIds(track.id)
 
   return (
     <li className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all ${isActive ? 'bg-gray-200 border-white shadow-inner' : 'bg-gray-100 border-gray-300 shadow-md'}`}>
@@ -53,6 +62,11 @@ export default function SongChip({
         <p className="text-sm font-medium text-black truncate">{track.name}</p>
         <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
       </div>
+      {tagIds.length > 0 && (
+        <div className="flex gap-1 items-center shrink-0">
+          {tagIds.map(id => <Dot key={id} tagId={id} />)}
+        </div>
+      )}
       <span className="text-xs text-gray-400 shrink-0 tabular-nums">{msToMinSec(track.duration_ms)}</span>
       {children}
     </li>
