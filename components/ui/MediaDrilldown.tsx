@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { Album, Playlist, Track } from '@/types/spotify'
 import SongChip, { TagButton, SongChipSkeleton } from '@/components/ui/SongChip'
+import { usePlayback } from '@/lib/contexts/PlaybackContext'
 
 type MediaItem = Album | Playlist
 
@@ -18,7 +19,7 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
   const [tracks, setTracks] = useState<Track[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [playingUri, setPlayingUri] = useState<string | null>(null)
+  const { playingUri, playTrack, pauseTrack } = usePlayback()
 
   useEffect(() => {
     setLoading(true)
@@ -42,20 +43,6 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
       .finally(() => setLoading(false))
   }, [item.id])
 
-  const playTrack = async (track: Track) => {
-    const res = await fetch('/api/spotify/player/play', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: track.uri }),
-    })
-    if (res.ok) setPlayingUri(track.uri)
-  }
-
-  const pauseTrack = async () => {
-    await fetch('/api/spotify/player/pause', { method: 'PUT' })
-    setPlayingUri(null)
-  }
-
   const art = item.images[0]?.url
   const subtitle = isAlbum(item) ? item.artists.map(a => a.name).join(', ') : null
 
@@ -67,10 +54,10 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
             <path d="M19 12H5M12 5l-7 7 7 7" />
           </svg>
         </button>
-        {art && <img src={art} alt="" className="w-12 h-12 rounded-lg object-cover shadow-md shrink-0" />}
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-black truncate">{item.name}</p>
-          {subtitle && <p className="text-xs text-gray-400 truncate">{subtitle}</p>}
+        {art && <img src={art} alt="" className="w-48 h-48 rounded-lg object-cover shadow-md shrink-0" />}
+        <div className="min-w-0 pl-3">
+          <p className="text-2xl font-bold text-black truncate">{item.name}</p>
+          {subtitle && <p className="text-medium text-gray-400 truncate">{subtitle}</p>}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import SongChip, { TagButton, SongChipSkeleton } from '@/components/ui/SongChip'
 import TrackTagger from '@/components/ui/TrackTagger'
 import MediaChip, { MediaChipSkeleton } from '@/components/ui/MediaChip'
 import MediaDrilldown from '@/components/ui/MediaDrilldown'
+import { usePlayback } from '@/lib/contexts/PlaybackContext'
 
 export default function SearchView({ visible }: { visible?: boolean }) {
   const [query, setQuery] = useState('')
@@ -17,9 +18,9 @@ export default function SearchView({ visible }: { visible?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [playingUri, setPlayingUri] = useState<string | null>(null)
   const [taggedTrack, setTaggedTrack] = useState<Track | null>(null)
   const [selected, setSelected] = useState<Album | Playlist | null>(null)
+  const { playingUri, playTrack: ctxPlayTrack, pauseTrack } = usePlayback()
 
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -95,22 +96,11 @@ export default function SearchView({ visible }: { visible?: boolean }) {
   }
 
   const playTrack = async (track: Track) => {
-    const res = await fetch('/api/spotify/player/play', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: track.uri }),
-    })
+    const res = await ctxPlayTrack(track)
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'Playback failed' }))
       setError(error ?? 'Playback failed')
-    } else {
-      setPlayingUri(track.uri)
     }
-  }
-
-  const pauseTrack = async () => {
-    await fetch('/api/spotify/player/pause', { method: 'PUT' })
-    setPlayingUri(null)
   }
 
   const handleScroll = async (e: React.UIEvent<HTMLUListElement>) => {

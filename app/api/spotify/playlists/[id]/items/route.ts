@@ -1,27 +1,12 @@
 import { spotifyFetch } from '@/lib/spotify/fetch'
 import { SpotifyError } from '@/types/spotify'
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
-
-const paramsSchema = z.object({
-  id: z.string().min(1),
-})
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const parsed = paramsSchema.safeParse(await params)
-
-  if (!parsed.success) {
-    return NextResponse.json(
-      { success: false, error: parsed.error.issues[0].message },
-      { status: 400 }
-    )
-  }
-
-  const { id } = parsed.data
-
+  const { id } = await params
   try {
     const res = await spotifyFetch(`/v1/playlists/${encodeURIComponent(id)}/items?limit=50`)
     const data = await res.json()

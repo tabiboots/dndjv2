@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import SongChip, { SongChipSkeleton } from '@/components/ui/SongChip'
 import { tagColor } from '@/components/ui/TagChip'
+import { usePlayback } from '@/lib/contexts/PlaybackContext'
 import type { Track } from '@/types/spotify'
 
 type Tag = { id: string; name: string; count: number; color: string | null; category_id: string | null }
@@ -47,7 +48,7 @@ export default function TagsView() {
   const [tracks, setTracks] = useState<Track[]>([])
   const [loadingTags, setLoadingTags] = useState(true)
   const [loadingTracks, setLoadingTracks] = useState(false)
-  const [playingUri, setPlayingUri] = useState<string | null>(null)
+  const { playingUri, playTrack, pauseTrack } = usePlayback()
   const [hue, setHue] = useState(0)
   const [sat, setSat] = useState(65)
   const [lit, setLit] = useState(55)
@@ -123,20 +124,6 @@ export default function TagsView() {
     setLoadingTracks(true)
     fetchTracks(userId, selected.id).then(() => setLoadingTracks(false))
   }, [selected?.id, userId])
-
-const playTrack = async (track: Track) => {
-    const res = await fetch('/api/spotify/player/play', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: track.uri }),
-    })
-    if (res.ok) setPlayingUri(track.uri)
-  }
-
-  const pauseTrack = async () => {
-    await fetch('/api/spotify/player/pause', { method: 'PUT' })
-    setPlayingUri(null)
-  }
 
   const deleteTag = async () => {
     if (!userId || !selected) return

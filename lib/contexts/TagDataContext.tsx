@@ -6,22 +6,34 @@ import { createClient } from '@/lib/supabase/client'
 export type Tag = { id: string; name: string; color: string | null }
 
 type TagDataValue = {
+  uid: string | null
   tags: Record<string, Tag>
   trackTags: Record<string, string[]>
 }
 
-const TagDataContext = createContext<TagDataValue>({ tags: {}, trackTags: {} })
+const TagDataContext = createContext<TagDataValue>({ uid: null, tags: {}, trackTags: {} })
 
+export function useUid(): string | null {
+  return useContext(TagDataContext).uid
+}
 export function useTag(id: string): Tag | undefined {
   return useContext(TagDataContext).tags[id]
 }
-
 export function useTagColor(id: string): string | null {
   return useContext(TagDataContext).tags[id]?.color ?? null
 }
-
 export function useTrackTagIds(spotifyId: string | null | undefined): string[] {
   return useContext(TagDataContext).trackTags[spotifyId ?? ''] ?? []
+}
+export function useAllTags(): Tag[] {
+  return Object.values(useContext(TagDataContext).tags)
+}
+export function useTrackIdsByTagIds(tagIds: Set<string>): string[] {
+  const { trackTags } = useContext(TagDataContext)
+  if (tagIds.size === 0) return []
+  return Object.entries(trackTags)
+    .filter(([, ids]) => ids.some(id => tagIds.has(id)))
+    .map(([spotifyId]) => spotifyId)
 }
 
 const supabase = createClient()
@@ -65,7 +77,7 @@ export function TagDataProvider({ children }: { children: React.ReactNode }) {
   }, [uid])
 
   return (
-    <TagDataContext.Provider value={{ tags, trackTags }}>
+    <TagDataContext.Provider value={{ uid, tags, trackTags }}>
       {children}
     </TagDataContext.Provider>
   )
