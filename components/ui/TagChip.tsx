@@ -2,7 +2,6 @@
 
 import { useTagColor } from '@/lib/contexts/TagDataContext'
 
-// ponytail: stable per-id fallback for tags that have no stored color yet
 export function tagColor(id: string): string {
   const hue = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360
   return `hsl(${hue}, 65%, 55%)`

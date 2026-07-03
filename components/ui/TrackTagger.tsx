@@ -1,36 +1,60 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Track } from '@/types/spotify'
-import IconButton from '@/components/ui/IconButton'
-import TagChip from '@/components/ui/TagChip'
+import { tagColor } from '@/components/ui/TagChip'
+import { useAllTags, useCategories, useTagColor, useTagMutators, useUid, type Tag } from '@/lib/contexts/TagDataContext'
 
-type Tag = { id: string; name: string }
+const supabase = createClient()
+
+function Chip({ tag, active, onClick }: { tag: Tag; active: boolean; onClick: () => void }) {
+  const color = useTagColor(tag.id) ?? tagColor(tag.id)
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${
+        active
+          ? 'bg-gray-200 border border-white shadow-inner text-black'
+          : 'bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200'
+      }`}
+    >
+      <span
+        className="w-2 h-2 rounded-full shrink-0 transition-all duration-100"
+        style={active ? { background: color, boxShadow: `0 0 5px 2px ${color}88` } : { background: '#d1d5db' }}
+      />
+      {tag.name.toLowerCase()}
+    </button>
+  )
+}
 
 export default function TrackTagger({ track, onClose }: { track: Track; onClose: () => void }) {
-  const supabase = createClient()
   const art = track.album.images?.[0]?.url
+  const userId = useUid()
+  const allTags = useAllTags()
+  const categories = useCategories()
+  const { addTagLocal } = useTagMutators()
 
-  const [userId, setUserId] = useState<string | null>(null)
-  const [tags, setTags] = useState<Tag[]>([])
   const [applied, setApplied] = useState<Set<string>>(new Set())
-  const [newTag, setNewTag] = useState('')
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
-  }, [])
+  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     if (!userId || !track.id) return
-    Promise.all([
-      supabase.from('tags').select('id,name').eq('user_id', userId).order('name'),
-      supabase.from('track_tags').select('tag_id').eq('spotify_id', track.id).eq('user_id', userId),
-    ]).then(([{ data: tagRows }, { data: ttRows }]) => {
-      setTags(tagRows ?? [])
-      setApplied(new Set((ttRows ?? []).map(r => r.tag_id)))
-    })
+    supabase.from('track_tags').select('tag_id')
+      .eq('spotify_id', track.id).eq('user_id', userId)
+      .then(({ data }) => setApplied(new Set((data ?? []).map(r => r.tag_id))))
   }, [userId, track.id])
+
+  const groups = useMemo(() => {
+    const q = filter.toLowerCase()
+    const visible = q ? allTags.filter(t => t.name.toLowerCase().includes(q)) : allTags
+    const result = categories
+      .map(cat => ({ label: cat.name, tags: visible.filter(t => t.category_id === cat.id) }))
+      .filter(g => g.tags.length > 0)
+    const uncategorized = visible.filter(t => !t.category_id)
+    if (uncategorized.length > 0) result.push({ label: 'other', tags: uncategorized })
+    return result
+  }, [allTags, categories, filter])
 
   const upsertTrack = async () => {
     const { error } = await supabase.from('tracks').upsert(
@@ -65,59 +89,74 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
 
   const createTag = async (e: React.FormEvent) => {
     e.preventDefault()
-    const name = newTag.trim()
+    const name = filter.trim()
     if (!userId || !name || !track.id) return
 
     const color = `hsl(${Math.floor(Math.random() * 360)}, 65%, 55%)`
-    const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name').single()
+    const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name,color').single()
     if (!data) return
+    addTagLocal({ ...data, category_id: null })
 
     const err = await upsertTrack()
     if (err) return
     const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: data.id, spotify_id: track.id, user_id: userId })
     if (ttErr) { console.error('track_tags insert (create):', ttErr); return }
 
-    setTags(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     setApplied(prev => new Set([...prev, data.id]))
-    setNewTag('')
+    setFilter('')
   }
 
   return (
     <div style={{ animation: 'fadeIn 0.15s ease 0.3s forwards', opacity: 0 }} className="flex flex-col h-full p-3 gap-3">
-      <div className="flex items-center justify-between">
-        <IconButton onClick={onClose} className="w-7 h-7 text-sm">×</IconButton>
+      {/* Header */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button onClick={onClose} className="text-gray-400 hover:text-black transition-colors shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+        {art && <img src={art} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-black truncate">{track.name}</p>
+          <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1 items-center">
-        {art && <img src={art} alt="" className="w-40 aspect-square object-cover rounded-lg shadow-xl border-2 border-gray-200" />}
-        <p className="text-medium pt-2 font-medium text-black truncate">{track.name}</p>
-        <p className="text-sm text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto flex flex-wrap content-start gap-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden">
-        {tags.map(tag => (
-          <button key={tag.id} onClick={() => toggle(tag)}>
-            <TagChip id={tag.id} name={tag.name} active={applied.has(tag.id)} />
-          </button>
+      {/* Tag groups */}
+      <div className="flex-1 overflow-y-auto flex flex-col gap-3 scrollbar-none [&::-webkit-scrollbar]:hidden">
+        {groups.length === 0 && (
+          <p className="text-xs text-gray-400">{filter ? 'No matching tags' : 'No tags yet'}</p>
+        )}
+        {groups.map(group => (
+          <div key={group.label} className="flex flex-col gap-1.5">
+            <p className="text-xs text-gray-400">{group.label}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {group.tags.map(tag => (
+                <Chip key={tag.id} tag={tag} active={applied.has(tag.id)} onClick={() => toggle(tag)} />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="pb-4">
-        <form onSubmit={createTag} className="flex flex-row items-center justify-around">
-          <input
-            type="text"
-            value={newTag}
-            onChange={e => setNewTag(e.target.value)}
-            placeholder="Create a new tag..."
-            className="w-5/6 px-3 py-3 rounded-full bg-gray-100 border border-gray-300 shadow-inner text-sm outline-none text-black placeholder:text-gray-400"
-          />
-          <IconButton type="submit" className="w-12 h-12">
-            <svg width="50%" height="50%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </IconButton>
-        </form>
-      </div>
+      {/* Filter / create */}
+      <form onSubmit={createTag} className="flex items-center gap-2 shrink-0 pb-2">
+        <input
+          type="text"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          placeholder="Filter or create tag..."
+          className="flex-1 px-3 py-2 rounded-full bg-gray-100 border border-gray-300 text-xs text-black placeholder:text-gray-400 outline-none"
+        />
+        {filter.trim() && !allTags.some(t => t.name.toLowerCase() === filter.toLowerCase()) && (
+          <button
+            type="submit"
+            className="w-7 h-7 rounded-full bg-gray-100 border border-gray-300 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-colors text-base leading-none shrink-0"
+          >
+            +
+          </button>
+        )}
+      </form>
     </div>
   )
 }

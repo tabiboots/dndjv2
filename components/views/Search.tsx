@@ -178,8 +178,8 @@ export default function SearchView({ visible }: { visible?: boolean }) {
           </div>
 
           <div
-            className="overflow-hidden transition-all duration-300 border-l border-gray-200 ml-auto"
-            style={{ width: taggedTrack ? '30%' : '0' }}
+            className="overflow-hidden transition-all duration-300 border-l border-gray-200 bg-white shrink-0"
+            style={{ width: taggedTrack ? 360 : 0 }}
           >
             {taggedTrack && <TrackTagger track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
           </div>
