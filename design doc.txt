@@ -1,0 +1,362 @@
+Tags Screen UI Overhaul — Design Document
+
+0. Goals & non-goals
+
+Goals
+- Eliminate the visual void when the user has 0-3 tags.
+- Give the screen more purpose even when populated: stats, search, sort, bulk actions, recent activity, a top "create tag" affordance, and richer tag cards.
+- Add a tag-creation entry point on this screen (currently only reachable from TrackTagger inside Search).
+- Replace the rigid 70/30 split with a more flexible layout that can host secondary content (activity rail, tips, recently tagged songs) instead of just collapsing to a blank 100% panel.
+
+Non-goals
+- No new database tables, no schema migration. Use existing tags, tag_categories, track_tags (the tagged_at column already exists in the schema but isn't read yet — we can use it for "Recently tagged").
+- No changes to the Spotify auth/player pipeline.
+- No changes to Deploy or Search views, except possibly accepting a ?newTag=1 deep link.
+
+1. Structural breakdown
+
+ What stays
+
+  - The detail panel's contents (editable name, HSL hue gradient + 3 sat/lit presets, category chips with inline create, track list with SongChip).
+  - TagChip, SongChip, IconButton, PlaybackContext, TagDataContext (used as-is; TagDataContext already exposes useAllTags and useTrackIdsByTagIds).
+  - Realtime subscription to tags / track_tags for the user.
+  - Color logic (HSL hue + sat/lit presets, fallback to tagColor(id) hash).
+
+What moves
+
+- The category-create + button stays in the detail panel, but the category list itself is promoted to a top-level chip bar above the grid (populated state only) so the user can filter the grid by category, not just assign categories from the detail panel.
+- The "Uncategorized" group label is hidden behind a small chip toggle (default: hidden, tags shown alongside grouped ones) — this reduces the label noise when only a few are uncategorized.
+
+What's new
+
+- A persistent header strip with stats and a primary "+ New tag" button (always visible once the user has any tag; the empty state gets an even larger version of it).
+- A search input in the header strip that filters the tag grid by name.
+- A sort menu (alphabetical / most tracks / recently tagged / by category) next to the search.
+- A category filter chip rail that also doubles as a way to add categories inline.
+- A bulk select mode (toolbar appears when at least one tag is selected): recolor, recategorize, delete.
+- A recent activity rail (right column, 18-22% width) showing the 8 most recent track_tags insertions with mini album art, track name, and the tag that was added.
+- A "Recently tagged tracks" mini-section at the bottom of the populated grid (last 6 unique tracks across all tags, click → play queue of all those tracks).
+- A richer TagCard with a 2x2 mini album-art mosaic background (4 album arts from tagged tracks, opacity 35%, desaturated) and the dot/name/count layered on top.
+- A floating FAB (mobile/narrow) "+ New tag" — same handler as the header button.
+- A full EmptyState and SparseState when tags.length === 0 and tags.length <= 3.
+
+Layout
+
+Populated (default):
+┌──────────────────────────────────────────────────────────────┐
+│  HEADER STRIP  stats · search · sort · category filter · + │
+├───────────────────────────────────────────┬──────────────────┤
+│                                           │                  │
+│   CATEGORY FILTER CHIPS                   │  RECENT ACTIVITY │
+│   [All] [Mood] [Era] [+]                  │  RAIL            │
+│                                           │  (8 rows)        │
+│   TAG GRID (4 cols, grouped, rich cards)  │                  │
+│                                           │  Recently tagged │
+│   ...                                     │  songs (6 rows)  │
+│                                           │                  │
+└───────────────────────────────────────────┴──────────────────┘
+
+Sparse (1-3 tags): grid still 4-col, but bottom half holds
+"Tips" + "Suggested tags" + "Recently tagged" stacked vertically.
+
+Empty: full-bleed centered hero with illustration, big CTA,
+3 starter tag presets as clickable chips, "How tagging works"
+3-step microcopy, "Open Search" secondary button.
+
+The 70/30 split becomes 78/22 when a tag is selected (so the detail panel can slide up under the activity rail instead of replacing the grid). The selected-tag detail is now a bottom sheet on mobile and a floating popover anchored to the TagCard on desktop — both reusing the same content. The activity rail never collapses, so the screen never goes empty.
+
+2. Component changes & new components
+
+Modified in place
+
+components/views/Tags.tsx — major rewrite. Becomes a thin orchestrator that:
+- fetches tags + categories + a "top tracks per tag" map (first 4 album art URLs) + a "recent activity" list (last 8 track_tags joined to tracks and tags) in one Promise.all.
+- tracks mode: 'view' | 'select'.
+- renders <TagsHeaderStrip>, <CategoryFilterChips>, <TagGrid>, <ActivityRail>, <TagDetailPanel> (positioned absolutely as a popover/sheet when a tag is selected), <NewTagDialog> (modal).
+- keeps the realtime subscription as-is.
+
+components/ui/TagChip.tsx — no API change. We use tagColor(id) from this file in the new TagCard.
+
+components/ui/SongChip.tsx — no change.
+
+lib/contexts/TagDataContext.tsx — extend with:
+- useRecentActivity(n) — returns the n most recent track_tags rows joined with track + tag (newest first by tagged_at).
+- useTracksByTagIds(tagIds, n) — returns up to n tracks per tag id (used for album-art mosaics). Caches per render.
+- useUniqueRecentlyTagged(n) — returns n unique tracks across the user's most recent tag additions (deduped by spotify_id, ordered by most recent).
+- useAllTags already exists, we add a useAllTagsWithCount that joins counts.
+
+This requires adding two query shapes to the provider's loadTags/loadTrackTags (or a separate loadRecent effect that runs once on mount and listens to track_tags changes). The new tagged_at field is already in the schema and unused — we read it now.
+
+New files
+
+components/views/tags/TagsHeaderStrip.tsx — fixed-height strip with: 12 tags · 3 categories · 247 tracks tagged on the left, search input, sort <SortMenu>, + New tag primary button, bulk-select toggle on the right. Receives
+  tags, categories, search, setSearch, sort, setSort, onNewTag, bulkMode, setBulkMode.
+
+  components/views/tags/CategoryFilterChips.tsx — horizontal scrollable chip rail. Chips: "All" + each category + + New category button (which reuses the inline create logic from the current detail panel). Selecting "All"
+  deselects. Multi-select with toggle behavior. Displays the count of tags in each category in tiny gray text after the name.
+
+components/views/tags/TagCard.tsx — replaces the inline TagCard function. Variants:
+- variant="default" — 2x2 album-art mosaic behind a desaturated color wash, then the colored dot, name, count. Hover: slight scale (1.02), elevated shadow.
+- variant="selected" — same, but with a thick colored ring (color from tag) and a subtle inner glow.
+- variant="bulk" — checkbox in the top-right corner, ring around the whole card.
+- variant="compact" — used inside the activity rail and on narrow screens (no mosaic, just dot + name + count).
+- variant="skeleton" — pulsing gray block.
+
+Props: tag: TagWithExtras, albumArts: string[] (length 0-4), isSelected, bulkSelected, onSelect, onToggleBulk.
+
+components/views/tags/TagGrid.tsx — takes tags, groupedByCategory, uncategorized, categoryFilter, sort, search, selectedId, bulkIds, handlers. Renders the section headers and grids. Adds the "Recently tagged" mini-section at the bottom when there is room.
+
+components/views/tags/ActivityRail.tsx — right column content. Two stacked scrollable areas (each overflow-y-auto, no scrollbar): "Recent activity" (8 rows of ActivityRow) and "Recently tagged tracks" (6 rows of SongChip). When the detail panel is open, this rail shrinks by 4% and the detail panel slides in over the right edge of the grid, not by replacing the rail.
+
+components/views/tags/ActivityRow.tsx — a row: 32x32 album art (rounded-md), track name (truncate), "tagged · tagname" in tiny text, timestamp ("2m ago"). Click plays the track with the rest of the activity as the queue. Right side: a tiny tag-color dot.
+
+components/views/tags/TagDetailPanel.tsx — extracted from the current inline JSX. Receives tag, tracks, loadingTracks, categories, all the mutators, onClose, onDelete. Renders the same content as today, but with these additions:
+- A "Top artists in this tag" sub-section (top 3 artists by frequency in tracks, computed client-side).
+- A play-all button at the top of the track list (calls playTrack(tracks[0], tracks)).
+- A "Shuffle this tag" secondary button next to play-all.
+- A "Last updated" tiny text (we don't store this currently, so leave it out — see "open question" below).
+
+components/views/tags/NewTagDialog.tsx — modal (centered, dim backdrop). Fields: name (autofocus, Enter submits), color (same hue gradient + sat/lit presets reused from TagDetailPanel), category (existing categories + "No
+  category" + "Create new…"). Submit creates the tag and immediately opens the detail panel on the new tag so the user can start adding tracks. Escape closes.
+
+  components/views/tags/BulkActionBar.tsx — appears at the bottom of the screen when bulkIds.size > 0. Sticky. Buttons: "Recolor", "Recategorize", "Move to Uncategorized", "Delete (n)". Each opens a small popover (color picker /
+  category picker / confirm). Cancel bulk button on the right.
+
+  components/views/tags/EmptyState.tsx — the 0-tags hero. See ASCII below.
+
+  components/views/tags/SparseState.tsx — wraps <TagGrid> with a tips / suggestions / recently-tagged cluster beneath. Used when tags.length > 0 && tags.length <= 3.
+
+  components/views/tags/SortMenu.tsx — small dropdown. Options: "Alphabetical" (default), "Most tracks", "Recently tagged", "By category". Uses a tailwind popover pattern (absolute positioned, bg-white rounded-2xl shadow-xl
+  border border-gray-200).
+
+ components/views/tags/TagCountSummary.tsx — small horizontal bar of category counts: Mood · 4  Era · 7  Vibe · 3  14 tags total. Used in the header strip.
+
+  lib/tagColors.ts — small helper module: hslStringToTriplet, tripletToHslString, randomTagColor() (matches the Math.random()*360, 65%, 55% pattern in TrackTagger.tsx), relativeTime(iso) ("2m ago", "3h ago", "yesterday"). Pure
+  functions, easy to test.
+
+  Untouched
+
+  - components/views/Search.tsx, components/views/Deploy.tsx, components/footer/Footer.tsx, app/page.tsx, all app/api/* routes, app/login/*, app/auth/*.
+
+  3. State designs (ASCII mockups)
+
+  Empty state (tags.length === 0)
+
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │                       [pill: Tags]                           │
+  │                                                              │
+  │                  .--..--..--..--..--.                        │
+  │                 /  [][]  [][]  [][]  \                       │
+  │                 |  [][]  [][]  [][]  |   <-- soft 2x2       │
+  │                 \  [][]  [][]  [][]  /      placeholder     │
+  │                  '--''--''--''--''--'       tiles, each in   │
+  │                                            a different muted │
+  │                                            color, with a      │
+  │                                            little dot on top │
+  │                                                              │
+  │           Tags are how you shape dndj                        │
+  │           Group songs into moods, eras, vibes —              │
+  │           anything you like.                                 │
+  │                                                              │
+  │           ┌──────────────────────────┐  ┌──────────────┐    │
+  │           │   + Create your first    │  │ Open Search  │    │
+  │           │          tag             │  │   to tag a   │    │
+  │           └──────────────────────────┘  │     song     │    │
+  │                                        └──────────────┘    │
+  │                                                              │
+  │   Or start with a preset:                                   │
+  │   [ + Chill ] [ + Hype ] [ + Focus ] [ + Sad ]               │
+  │                                                              │
+  │   How tagging works:                                        │
+  │   1. Create a tag  →  2. Tag songs in Search                 │
+  │   3. Deploy the right vibe to your queue                    │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
+
+Preset behavior: clicking a preset opens NewTagDialog with the name pre-filled and a color auto-chosen from a small palette. Submission creates the tag and immediately opens the detail panel.
+
+Sparse state (tags.length > 0 && tags.length <= 3)
+
+┌──────────────────────────────────────────────────────────────┐
+│  3 tags · 0 categories · 12 tracks tagged   [search] [sort]  │
+│  [All] [+ New category]                          + New tag   │
+├──────────────────────────────────────────────────────────────┤
+│  [rich TagCard] [rich TagCard] [rich TagCard]                │
+│                                                              │
+├──────────────────────────────────────────────────────────────┤
+│  Tips                                                        │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐         │
+│  │  Recolor by  │ │  Drag tracks │ │  Use Deploy  │         │
+│  │  clicking a  │ │  onto tags   │ │  to play any │         │
+│  │  tag         │ │  in Search   │ │  combination │         │
+│  └──────────────┘ └──────────────┘ └──────────────┘         │
+│                                                              │
+│  Suggested next tags                                        │
+│  [ + Workout ] [ + Late night ] [ + Driving ]                │
+│                                                              │
+│  Recently tagged                                             │
+│  [SongChip] [SongChip] [SongChip] [SongChip]                 │
+└──────────────────────────────────────────────────────────────┘
+
+"Suggested next tags" are hard-coded starters initially (Workout, Late night, Driving, Cooking, Focus, Party) and could be data-driven later. Each is a + chip that opens NewTagDialog pre-filled.
+
+Populated state
+
+┌──────────────────────────────────────────────────────────────┐
+│  14 tags · 3 categories · 247 tracks tagged   [search][sort] │
+│  [All 14] [Mood 4] [Era 7] [Vibe 3] [+ New category]  + New │
+├──────────────────────────────────────────────────────────────┤
+│  Mood                                                        │
+│  [card][card][card][card]                                    │
+│  [card][card]                                                │
+│  Era                                                         │
+│  [card][card][card][card]                                    │
+│  Vibe                                                        │
+│  [card][card][card]                                          │
+│                                                              │
+│  Uncategorized                                               │
+│  [card][card]                                                │
+│                                                              │
+│  Recently tagged                                             │
+│  [SongChip] [SongChip] [SongChip] [SongChip]                 │
+├──────────────────────────────────────────────────────────────┤
+│                       RECENT ACTIVITY                        │
+│  [art] Track · tagged · Chill   · 2m                         │
+│  [art] Track · tagged · Hype    · 5m                         │
+│  [art] Track · tagged · Sad     · 12m                        │
+│  ...                                                         │
+│  RECENTLY TAGGED TRACKS                                     │
+│  [SongChip] [SongChip] ...                                   │
+└──────────────────────────────────────────────────────────────┘
+
+When a tag is clicked, the detail panel slides in as a 360px-wide popover anchored to the card (or as a 420px-tall bottom sheet on narrow viewports). The activity rail is still visible — it doesn't collapse. The grid is not resized to 70%; the popover overlays the right ~22% of the grid instead.
+
+4. Color, type, and visual treatment
+
+The codebase uses a tight palette: bg-gray-100 (page), bg-white surfaces, bg-gray-200 pressed, border-gray-200/300, text-gray-400 muted, text-black primary, Nunito Sans (rounded humanist). All shadows are shadow-md resting / shadow-inner pressed. Cards are rounded-2xl for tiles, rounded-full for chips/buttons. This is essentially a "neumorphic-lite" white-on-gray look. We stay inside that.
+
+Specific treatments:
+- Header strip: bg-white, border-b border-gray-200, shadow-sm, height ~52px. Stats text in text-xs text-gray-400. Search input is the same bg-gray-200 rounded-full look as the Search view's search bar. Sort menu and + New tag button use the same IconButton style.
+- Category filter chips: same chip style as the detail panel's category chips today (active = bg-gray-200 border-white shadow-inner, inactive = bg-gray-100 border-gray-300). Add a count next to the name in text-[10px] text-gray-400.
+- TagCard (default): a 2x2 album-art grid in the background, each tile is 50% width/height, with object-cover and an opacity-40 overlay. The whole card sits on bg-gray-100 so the muted arts are visible without competing with text. A subtle color wash on top of the mosaic (the tag's color, mix-blend-multiply at 8%) so the card carries the tag's identity. Dot + name + count sit on top in the bottom-left corner with a bg-white/85 backdrop-blur-sm rounded-xl px-2 py-1 "label chip" so text is always legible regardless of art. Hover: hover:scale-[1.015] hover:shadow-lg transition-all duration-150. Selected: ring-2 with the tag color, ring-offset-2 ring-offset-gray-100.
+- TagCard (compact): no mosaic, just dot + name + count inline, used in the activity rail and in the suggestions row of the sparse state. Same look as today's card.
+- Activity rail: border-l border-gray-200, bg-white, internal sections separated by a single 1px border-b border-gray-100 with p-3 padding.
+- Empty state hero: keep the white/gray aesthetic. The 2x2 placeholder tiles can use four of the established hsl(*, 65%, 55%) palette swatches at 50% opacity. The "happy pillow" reference: a single rounded rectangle (the "pillow") tilted slightly with a soft drop shadow and a friendly tag-color dot near the corner — pure SVG, no asset needed. Use style={{ transform: 'rotate(-3deg)' }} and a layered shadow-[0_30px_60px_-20px_rgba(0,0,0,0.18)].
+- Animations: keep using the existing fadeIn keyframe for the detail panel. Add a pop keyframe (@keyframes pop { from { transform: scale(0.96); opacity: 0 } to { transform: scale(1); opacity: 1 } }) in globals.css for the popover and the NewTagDialog. For the empty-state tiles, a gentle breath (4s, transform: scale(1) <-> scale(1.02), opacity: 0.9 <-> 1) on each tile with a staggered 200ms delay — gives the pillow a soft living feel without being distracting.
+- Gradients: use sparingly. The hue bar in the picker is the only place a multi-stop gradient is necessary (already exists). The TagCard mosaic and the "pillow" use solid color washes, not gradients.
+
+5. New interactions & affordances
+
+
+1. + New tag — primary button in the header strip (populated) or hero (empty/sparse). Opens NewTagDialog.
+  2. Search tags — debounced (150ms) text input, filters by tag name (case-insensitive includes). Clears with an × inside the input.
+  3. Sort menu — dropdown with 4 options. Persisted in component state (no need for a backend; can later move to localStorage). When sort = "By category", groups keep their internal order; outside the groups, the empty grid
+  would show the order: groups by category name, then uncategorized. When sort = "Recently tagged", tags are ordered by the max tagged_at of any of their tracks. When sort = "Most tracks", ordered by count desc.
+  4. Category filter chips — multi-select; clicking "All" deselects the rest. If no chips are active, the filter is treated as "All" and the grid shows every tag.
+  5. Inline create category — + New category chip in the filter rail opens an inline text input (Enter to create, Esc to cancel), reusing the existing doCreateCategory logic.
+  6. Bulk select mode — toggle in the header strip. When on, each card shows a checkbox in the top-right; clicking a card toggles its bulkIds. The BulkActionBar slides up from the bottom. The bar's recolor uses the same hue
+  gradient + sat/lit presets (small, ~120px wide). Recategorize shows the same chip list. Delete shows a confirm with the count.
+  7. Drag-to-bulk-recolor (stretch) — when in bulk select, dragging from the hue bar onto cards recolors them. Skip for v1; ship in v2.
+  8. Tag card click — opens the detail popover/sheet.
+  9. Tag card right-click (stretch) — quick-action menu: "Open in Deploy", "Rename", "Recolor", "Delete". Skip for v1.
+  10. Activity row click — plays that track with the rest of the activity as the queue (playTrack(track, activity.map(a => a.track))).
+  11. "Recently tagged tracks" mini-section click — same play behavior with the 6 unique tracks as the queue.
+  12. Play-all and Shuffle buttons in the detail panel — playTrack(tracks[0], tracks) for ordered, playTrack(shuffled[0], shuffled) for shuffle (reuse the shuffled function shape already in Deploy.tsx; could lift it into
+  lib/array.ts).
+  13. Empty-state preset chips — + Chill, + Hype, + Focus, + Sad open NewTagDialog with name and a curated color pre-filled.
+  14. FAB on narrow viewports — sticky bottom-right, + icon, opens NewTagDialog. Hidden when viewport >= 768px.
+  15. Keyboard:
+    - n → opens NewTagDialog (when no input is focused).
+    - Esc → closes dialog/panel/popover.
+    - / → focuses the search input.
+    - ? → opens a tiny "Shortcuts" popover (optional polish).
+    - Delete while the detail panel is focused → triggers the delete confirm.
+  16. Deep link — ?tag=<id> opens the detail popover on load; ?newTag=1 opens NewTagDialog on load. Search view can link to ?newTag=1 from its own empty state if desired (cross-view improvement, optional).
+
+6. Information density
+
+- Header strip (height 52px): stats, search, sort, bulk-toggle, primary + New tag. No idle space — every column carries information.
+- Category filter rail (height ~40px): every category with a count, + New category. The chip text never truncates because the rail scrolls horizontally with hidden scrollbar.
+- Tag grid: 4-column, gap-3, auto-rows-fr so the mosaic cards in each row align. The label chip on each card has consistent padding so density is uniform.
+- Activity rail (width 22%): two scrollable sections. "Recent activity" is the densest area — 8 rows of 56px each. "Recently tagged tracks" uses SongChip so it's familiar.
+- Sparse state tips row: 3 small cards (text + emoji or icon), each ~120px wide. Gives the page a sense of structure when the grid is mostly empty.
+- Empty state: single screen, no scroll needed. All content fits within a typical laptop viewport.
+
+7. Prioritized implementation order
+
+This is sequenced so each step ships a visually improved screen without leaving intermediate states broken.
+
+P0 — Density & essentials (smallest diff, biggest impact)
+1. Add lib/tagColors.ts (hsl helpers, randomTagColor, relativeTime).
+2. Extend TagDataContext with useRecentActivity, useUniqueRecentlyTagged, and a tracksByTagIds map.
+3. Create TagsHeaderStrip with stats, search, sort dropdown, and + New tag button. Wire it in.
+4. Create CategoryFilterChips (uses existing categories; new category inline).
+5. Extract TagCard into its own file with the album-art mosaic background and 5 variants.
+6. Add SortMenu (4 options, client-only state).
+7. Add the "Recently tagged songs" mini-section at the bottom of the grid.
+
+P1 — Empty & sparse states
+8. Build EmptyState (hero, presets, how-it-works, "happy pillow" SVG, primary CTA, secondary "Open Search").
+9. Build SparseState (tips cards + suggested-tag chips + recently tagged row).
+10. Wire state branching in Tags.tsx based on tags.length.
+
+P2 — Activity & bulk
+11. Build ActivityRail and ActivityRow.
+12. Build BulkActionBar and bulk-select toggle in the header.
+13. Refactor detail panel into TagDetailPanel and convert from 70/30 to popover/sheet.
+
+P3 — New tag creation flow
+14. Build NewTagDialog and wire from header + New tag, FAB, and empty-state presets.
+15. Add FAB.
+16. Add deep-link support (?newTag=1, ?tag=<id>).
+
+P4 — Polish
+17. Add pop and breath keyframes to globals.css.
+18. Add n, /, Esc, Delete keyboard shortcuts.
+19. Hover animations, focus rings, ARIA labels for all new buttons.
+
+P0 alone will already make the screen feel ~60% less empty. P1 closes the empty/sparse gap. P2 is the biggest perceived-complexity win once the user has tags. P3 is required for "you can create tags here." P4 is delight.
+
+  8. Open questions to confirm with the user
+
+  - Tag creation from the Tags screen: confirm this is wanted (currently it's only possible from TrackTagger inside Search). I have it as a P3 item; if the user wants it sooner, it can move to P0.
+  - Tag presets: which starter set? I proposed Chill / Hype / Focus / Sad. The user may want Workout / Driving / Cooking / Sleep or no presets at all.
+  - Last-updated timestamp on cards: requires either a updated_at column on tags (DB change — would be a small migration) or inferring from track_tags.tagged_at (max of related rows). I'd default to inferring; flag it for
+  confirmation.
+  - "Happy pillow": the user mentioned "overhaul the happy pillow" — I read this as a name for the Tags screen, not a literal pillow. I included a soft pillow-like decorative element in the empty state; if the user wants a
+  different mascot or no mascot at all, adjust.
+  - Sort persistence: localStorage vs. session-only. Default to session-only unless asked.
+  - Drag-to-recolor / drag-to-recategorize: marked stretch. Confirm whether v1 should include it.
+
+  9. Files to touch
+
+  - components/views/Tags.tsx (full rewrite as orchestrator)
+  - lib/contexts/TagDataContext.tsx (extend with new hooks)
+  - app/globals.css (add pop and breath keyframes)
+
+  10. New files to create
+
+  - components/views/tags/TagsHeaderStrip.tsx
+  - components/views/tags/CategoryFilterChips.tsx
+  - components/views/tags/TagCard.tsx
+  - components/views/tags/TagGrid.tsx
+  - components/views/tags/ActivityRail.tsx
+  - components/views/tags/ActivityRow.tsx
+  - components/views/tags/TagDetailPanel.tsx
+  - components/views/tags/NewTagDialog.tsx
+  - components/views/tags/BulkActionBar.tsx
+  - components/views/tags/EmptyState.tsx
+  - components/views/tags/SparseState.tsx
+  - components/views/tags/SortMenu.tsx
+  - components/views/tags/TagCountSummary.tsx
+  - lib/tagColors.ts
+
+Critical Files for Implementation
+
+- C:/Users/tabia/OneDrive/Desktop/dndj/components/views/Tags.tsx
+- C:/Users/tabia/OneDrive/Desktop/dndj/lib/contexts/TagDataContext.tsx
+- C:/Users/tabia/OneDrive/Desktop/dndj/components/ui/TagChip.tsx
+- C:/Users/tabia/OneDrive/Desktop/dndj/app/globals.css
+- C:/Users/tabia/OneDrive/Desktop/dndj/lib/database.types.ts

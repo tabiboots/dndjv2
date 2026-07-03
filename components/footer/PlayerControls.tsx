@@ -14,9 +14,12 @@ export default function PlayerControls({ player, playbackState }: Props) {
   const duration = playbackState?.duration ?? 1
 
   const [displayProgress, setDisplayProgress] = useState(0)
-  const progressRef = useRef({ pct: 0, duration: 1, playing: false })
+  const [dragging, setDragging] = useState(false)
+  const progressRef = useRef({ pct: 0, duration: 1, playing: false, dragging: false })
+  const barRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (progressRef.current.dragging) return
     if (!playbackState) { progressRef.current.pct = 0; setDisplayProgress(0); return }
     const pct = (position / duration) * 100
     progressRef.current.pct = pct
@@ -27,12 +30,41 @@ export default function PlayerControls({ player, playbackState }: Props) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      if (!progressRef.current.playing) return
+      if (!progressRef.current.playing || progressRef.current.dragging) return
       progressRef.current.pct = Math.min(100, progressRef.current.pct + (500 / progressRef.current.duration) * 100)
       setDisplayProgress(progressRef.current.pct)
     }, 500)
     return () => clearInterval(id)
   }, [])
+
+  const pctFromEvent = (e: React.PointerEvent) => {
+    const rect = barRef.current!.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+  }
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!player || !playbackState) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    progressRef.current.dragging = true
+    setDragging(true)
+    const pct = pctFromEvent(e) * 100
+    progressRef.current.pct = pct
+    setDisplayProgress(pct)
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!progressRef.current.dragging) return
+    const pct = pctFromEvent(e) * 100
+    progressRef.current.pct = pct
+    setDisplayProgress(pct)
+  }
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!progressRef.current.dragging) return
+    progressRef.current.dragging = false
+    setDragging(false)
+    player?.seek(pctFromEvent(e) * progressRef.current.duration)
+  }
 
   return (
     <div className="flex flex-col items-center justify-center gap-1.5">
@@ -62,11 +94,18 @@ export default function PlayerControls({ player, playbackState }: Props) {
         </IconButton>
       </div>
 
-      <div className="w-48 h-1 bg-gray-200 rounded-full border border-gray-200 shadow-inner overflow-hidden">
-        <div
-          className="h-full bg-gray-400 rounded-full"
-          style={{ width: `${displayProgress}%`, transition: 'width 0.5s linear' }}
-        />
+      <div
+        className="group w-48 py-1.5 -my-1.5 cursor-pointer touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <div ref={barRef} className="h-1 bg-gray-200 rounded-full border border-gray-200 shadow-inner overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gray-400 group-hover:bg-gray-500"
+            style={{ width: `${displayProgress}%`, transition: dragging ? 'none' : 'width 0.5s linear' }}
+          />
+        </div>
       </div>
     </div>
   )

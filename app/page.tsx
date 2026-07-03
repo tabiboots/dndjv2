@@ -46,7 +46,7 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
         <TagDataProvider>
-          <PlaybackProvider>
+          <PlaybackProvider playbackState={playbackState}>
             <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
             <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView /></div>
             <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView /></div>

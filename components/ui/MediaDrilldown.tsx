@@ -72,7 +72,7 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
               key={track.id}
               track={track}
               isActive={playingUri === track.uri}
-              onClick={playTrack}
+              onClick={t => playTrack(t, tracks)}
               onPause={pauseTrack}
             >
               <TagButton onClick={() => onTag(track)} />

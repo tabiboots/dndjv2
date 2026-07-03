@@ -193,7 +193,7 @@ export default function DeployView() {
                   key={track.id}
                   track={track}
                   isActive={playingUri === track.uri}
-                  onClick={playTrack}
+                  onClick={t => playTrack(t, queue)}
                   onPause={pauseTrack}
                 />
               ))

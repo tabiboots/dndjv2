@@ -95,8 +95,8 @@ export default function SearchView({ visible }: { visible?: boolean }) {
     }, 300)
   }
 
-  const playTrack = async (track: Track) => {
-    const res = await ctxPlayTrack(track)
+  const playTrack = async (track: Track, queue?: Track[]) => {
+    const res = await ctxPlayTrack(track, queue)
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'Playback failed' }))
       setError(error ?? 'Playback failed')
@@ -164,7 +164,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
                         key={track.id}
                         track={track}
                         isActive={playingUri === track.uri}
-                        onClick={playTrack}
+                        onClick={t => playTrack(t, tracks)}
                         onPause={pauseTrack}
                       >
                         <TagButton onClick={() => setTaggedTrack(track)} />
