@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { dbToTrack, type DBTrack } from '@/lib/spotify/dbTrack'
 import type { Track } from '@/types/spotify'
 
-export type Tag = { id: string; name: string; color: string | null; category_id: string | null }
-export type Category = { id: string; name: string }
+export type Tag = { id: string; name: string; color: string | null; category_id: string | null; sort_order: number }
+export type Category = { id: string; name: string; sort_order: number }
 export type TrackTagRow = { spotify_id: string; tag_id: string; tagged_at: string }
 
 type Mutators = {
@@ -14,6 +14,8 @@ type Mutators = {
   patchTag: (id: string, patch: Partial<Tag>) => void
   removeTagLocal: (id: string) => void
   addCategoryLocal: (cat: Category) => void
+  patchCategory: (id: string, patch: Partial<Category>) => void
+  removeCategoryLocal: (id: string) => void
   removeTrackTagLocal: (tagId: string, spotifyId: string) => void
 }
 
@@ -40,6 +42,8 @@ const TagDataContext = createContext<TagDataValue>({
   patchTag: noop,
   removeTagLocal: noop,
   addCategoryLocal: noop,
+  patchCategory: noop,
+  removeCategoryLocal: noop,
   removeTrackTagLocal: noop,
 })
 
@@ -135,8 +139,8 @@ export function useRecentTaggedAtByTag(): Record<string, string> {
   }, [trackTagRows])
 }
 export function useTagMutators(): Mutators {
-  const { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, removeTrackTagLocal } = useContext(TagDataContext)
-  return { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, removeTrackTagLocal }
+  const { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal } = useContext(TagDataContext)
+  return { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal }
 }
 
 const supabase = createClient()
@@ -157,14 +161,14 @@ export function TagDataProvider({ children }: { children: React.ReactNode }) {
     if (!uid) return
 
     const loadTags = async () => {
-      const { data } = await supabase.from('tags').select('id, name, color, category_id').eq('user_id', uid)
+      const { data } = await supabase.from('tags').select('id, name, color, category_id, sort_order').eq('user_id', uid).order('sort_order')
       const next: Record<string, Tag> = {}
       for (const t of data ?? []) next[t.id] = t
       setTags(next)
     }
 
     const loadCategories = async () => {
-      const { data } = await supabase.from('tag_categories').select('id, name').eq('user_id', uid).order('name')
+      const { data } = await supabase.from('tag_categories').select('id, name, sort_order').eq('user_id', uid).order('sort_order')
       setCategories(data ?? [])
     }
 
@@ -209,14 +213,20 @@ export function TagDataProvider({ children }: { children: React.ReactNode }) {
   const removeTagLocal = (id: string) =>
     setTags(prev => { const next = { ...prev }; delete next[id]; return next })
   const addCategoryLocal = (cat: Category) =>
-    setCategories(prev => [...prev.filter(c => c.id !== cat.id), cat].sort((a, b) => a.name.localeCompare(b.name)))
+    setCategories(prev => [...prev.filter(c => c.id !== cat.id), cat].sort((a, b) => a.sort_order - b.sort_order))
+  const patchCategory = (id: string, patch: Partial<Category>) =>
+    setCategories(prev =>
+      prev.map(c => c.id === id ? { ...c, ...patch } : c).sort((a, b) => a.sort_order - b.sort_order)
+    )
+  const removeCategoryLocal = (id: string) =>
+    setCategories(prev => prev.filter(c => c.id !== id))
   const removeTrackTagLocal = (tagId: string, spotifyId: string) =>
     setTrackTagRows(prev => prev.filter(r => !(r.tag_id === tagId && r.spotify_id === spotifyId)))
 
   return (
     <TagDataContext.Provider value={{
       uid, loaded, tags, categories, trackTagRows, trackTags, tracksById,
-      addTagLocal, patchTag, removeTagLocal, addCategoryLocal, removeTrackTagLocal,
+      addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal,
     }}>
       {children}
     </TagDataContext.Provider>

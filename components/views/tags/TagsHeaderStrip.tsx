@@ -55,7 +55,7 @@ export default function TagsHeaderStrip({
           </button>
         )}
       </div>
-      <SortMenu sort={sort} setSort={setSort} />
+      <SortMenu sort={sort} setSort={setSort}/>
       <button
         onClick={onNewTag}
         className="flex items-center gap-1 h-8 px-3.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner active:scale-[0.99] shrink-0"

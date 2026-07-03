@@ -36,7 +36,7 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
   const recentByTag = useRecentTaggedAtByTag()
   const recentlyTagged = useUniqueRecentlyTagged(6)
   const trackCount = useTaggedTrackCount()
-  const { addCategoryLocal } = useTagMutators()
+  const { addCategoryLocal, patchCategory, removeCategoryLocal } = useTagMutators()
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -69,13 +69,33 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
 
   const createCategory = async (name: string): Promise<Category | null> => {
     if (!uid || !name) return null
+    const sort_order = categories.length
     const { data } = await supabase
       .from('tag_categories')
-      .insert({ name, user_id: uid })
-      .select('id, name')
+      .insert({ name, user_id: uid, sort_order })
+      .select('id, name, sort_order')
       .single()
     if (data) addCategoryLocal(data)
     return data
+  }
+
+  const reorderCategory = (id: string, dir: -1 | 1) => {
+    const idx = categories.findIndex(c => c.id === id)
+    const swapIdx = idx + dir
+    if (idx < 0 || swapIdx < 0 || swapIdx >= categories.length) return
+    const a = categories[idx], b = categories[swapIdx]
+    patchCategory(a.id, { sort_order: b.sort_order })
+    patchCategory(b.id, { sort_order: a.sort_order })
+    Promise.all([
+      supabase.from('tag_categories').update({ sort_order: b.sort_order }).eq('id', a.id),
+      supabase.from('tag_categories').update({ sort_order: a.sort_order }).eq('id', b.id),
+    ])
+  }
+
+  const deleteCategory = async (id: string) => {
+    if (!uid) return
+    removeCategoryLocal(id)
+    await supabase.from('tag_categories').delete().eq('id', id).eq('user_id', uid)
   }
 
   return (
@@ -106,6 +126,8 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
                 onToggle={toggleCategory}
                 onClear={() => setCategoryFilter(new Set())}
                 onCreate={createCategory}
+                onReorder={reorderCategory}
+                onDelete={deleteCategory}
               />
               <TagGrid
                 tags={tags}

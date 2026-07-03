@@ -45,7 +45,7 @@ export default function NewTagDialog({
     const { data } = await supabase
       .from('tags')
       .insert({ name: trimmed, color, category_id: categoryId, user_id: uid })
-      .select('id, name, color, category_id')
+      .select('id, name, color, category_id, sort_order')
       .single()
     setSubmitting(false)
     if (!data) return

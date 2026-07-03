@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useAllTags, useTrackIdsByTagIds } from '@/lib/contexts/TagDataContext'
+import { useAllTags, useCategories, useTrackIdsByTagIds } from '@/lib/contexts/TagDataContext'
 import { usePlayback } from '@/lib/contexts/PlaybackContext'
 import { tagColor } from '@/components/ui/TagChip'
 import SongChip, { SongChipSkeleton } from '@/components/ui/SongChip'
@@ -50,7 +50,8 @@ function TogglePill({ options, value, onChange }: {
 }
 
 export default function DeployView() {
-  const tags = useAllTags().sort((a, b) => a.name.localeCompare(b.name))
+  const allTags = useAllTags()
+  const categories = useCategories()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<'any' | 'all'>('any')
   const [shuffle, setShuffle] = useState(true)
@@ -120,23 +121,50 @@ export default function DeployView() {
     <div className="flex-1 flex flex-row overflow-hidden">
       <div className="flex flex-col w-1/2 border-r border-gray-300 h-full overflow-hidden">
         <h1 className="text-xl font-bold px-4 py-4 shrink-0">Deploy to Spotify</h1>
-        <div className="flex-1 overflow-y-auto scrollbar-none px-4 flex flex-col gap-2">
-          {tags.map(tag => {
-            const color = tag.color ?? tagColor(tag.id)
-            const active = selected.has(tag.id)
-            return (
-              <button
-                key={tag.id}
-                onClick={() => toggle(tag.id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
-                  active ? 'bg-gray-200 border-white shadow-inner' : 'bg-gray-100 border-gray-300 shadow-sm'
-                }`}
-              >
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
-                <span className="text-sm font-medium text-black">{tag.name}</span>
-              </button>
-            )
-          })}
+        <div className="flex-1 overflow-y-auto scrollbar-none px-4 flex flex-col gap-3">
+          {(() => {
+            const sorted = [...allTags].sort((a, b) => a.name.localeCompare(b.name))
+            const catOrder = categories.map(c => c.id)
+            const byCat: Record<string, typeof sorted> = {}
+            const uncategorized: typeof sorted = []
+            for (const tag of sorted) {
+              if (tag.category_id && catOrder.includes(tag.category_id)) {
+                (byCat[tag.category_id] ??= []).push(tag)
+              } else {
+                uncategorized.push(tag)
+              }
+            }
+            const sections: { label: string | null; tags: typeof sorted }[] = [
+              ...categories.filter(c => byCat[c.id]?.length).map(c => ({ label: c.name, tags: byCat[c.id] })),
+              ...(uncategorized.length ? [{ label: categories.length ? 'Uncategorized' : null, tags: uncategorized }] : []),
+            ]
+            return sections.map(({ label, tags }) => (
+              <div key={label ?? '__none'} className="flex flex-col gap-1.5">
+                {label && <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-1">{label}</p>}
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map(tag => {
+                    const color = tag.color ?? tagColor(tag.id)
+                    const active = selected.has(tag.id)
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => toggle(tag.id)}
+                        className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-sm font-medium transition-all ${
+                          active ? 'bg-gray-200 border-white shadow-inner' : 'bg-gray-100 border-gray-300 shadow-sm'
+                        }`}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0 transition-colors duration-150"
+                          style={{ background: active ? color : '#d1d5db' }}
+                        />
+                        {tag.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          })()}
         </div>
         <div className="shrink-0 px-4 py-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -154,7 +182,7 @@ export default function DeployView() {
           <button
             onClick={deploy}
             disabled={queue.length === 0 || loadingQueue || deploying}
-            className="w-full py-2 rounded-xl bg-black text-white text-sm font-semibold disabled:opacity-30 transition-opacity"
+            className="w-full py-1.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner disabled:opacity-40 disabled:pointer-events-none"
           >
             {deploying ? 'Deploying…' : `Deploy (${queue.length} tracks)`}
           </button>

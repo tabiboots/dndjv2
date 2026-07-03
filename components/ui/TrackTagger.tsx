@@ -15,7 +15,7 @@ function Chip({ tag, active, onClick }: { tag: Tag; active: boolean; onClick: ()
       onClick={onClick}
       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${
         active
-          ? 'bg-gray-200 border border-white shadow-inner text-black'
+          ? 'bg-gray-200 border border-white shadow-inner te  xt-black'
           : 'bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200'
       }`}
     >
@@ -93,7 +93,7 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
     if (!userId || !name || !track.id) return
 
     const color = `hsl(${Math.floor(Math.random() * 360)}, 65%, 55%)`
-    const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name,color').single()
+    const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name,color,sort_order').single()
     if (!data) return
     addTagLocal({ ...data, category_id: null })
 
@@ -115,11 +115,13 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
-        {art && <img src={art} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-black truncate">{track.name}</p>
           <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
         </div>
+      </div>
+      <div className="flex justify-around gap-2">
+        {art && <img src={art} alt="" className="w-40 h-40 rounded object-cover shrink-0 border-2 border-gray-200" />}
       </div>
 
       {/* Tag groups */}

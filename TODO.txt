@@ -2,3 +2,4 @@
 ## UI for deploy screen
 ## general header?
 ## add a favicon
+## fix real time tag on SongChip when applying from TrackTagger
