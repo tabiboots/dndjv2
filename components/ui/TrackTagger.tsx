@@ -10,7 +10,7 @@ type Tag = { id: string; name: string }
 
 export default function TrackTagger({ track, onClose }: { track: Track; onClose: () => void }) {
   const supabase = createClient()
-  const art = track.album.images[0]?.url
+  const art = track.album.images?.[0]?.url
 
   const [userId, setUserId] = useState<string | null>(null)
   const [tags, setTags] = useState<Tag[]>([])
@@ -38,7 +38,7 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
         spotify_id: track.id!,
         name: track.name,
         artist_names: track.artists.map(a => a.name),
-        album_art_url: track.album.images[0]?.url ?? null,
+        album_art_url: track.album.images?.[0]?.url ?? null,
         duration_ms: track.duration_ms,
         uri: track.uri,
       },

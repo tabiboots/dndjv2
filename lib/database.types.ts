@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      deploy_playlists: {
+        Row: {
+          created_at: string
+          playlist_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          playlist_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          playlist_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       spotify_tokens: {
         Row: {
           access_token: string

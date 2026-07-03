@@ -43,7 +43,7 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
       .finally(() => setLoading(false))
   }, [item.id])
 
-  const art = item.images[0]?.url
+  const art = item.images?.[0]?.url
   const subtitle = isAlbum(item) ? item.artists.map(a => a.name).join(', ') : null
 
   return (

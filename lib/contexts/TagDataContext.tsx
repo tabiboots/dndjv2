@@ -28,11 +28,15 @@ export function useTrackTagIds(spotifyId: string | null | undefined): string[] {
 export function useAllTags(): Tag[] {
   return Object.values(useContext(TagDataContext).tags)
 }
-export function useTrackIdsByTagIds(tagIds: Set<string>): string[] {
+export function useTrackIdsByTagIds(tagIds: Set<string>, mode: 'any' | 'all' = 'any'): string[] {
   const { trackTags } = useContext(TagDataContext)
   if (tagIds.size === 0) return []
   return Object.entries(trackTags)
-    .filter(([, ids]) => ids.some(id => tagIds.has(id)))
+    .filter(([, ids]) =>
+      mode === 'any'
+        ? ids.some(id => tagIds.has(id))
+        : [...tagIds].every(id => ids.includes(id))
+    )
     .map(([spotifyId]) => spotifyId)
 }
 

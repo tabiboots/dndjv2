@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function TrackChip({ track, isReady, error }: Props) {
-  const albumArt = track?.album.images[0]?.url
+  const albumArt = track?.album.images?.[0]?.url
 
   return (
     <div className="flex items-center gap-3 min-w-0">

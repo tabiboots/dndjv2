@@ -144,13 +144,13 @@ export default function SearchView({ visible }: { visible?: boolean }) {
                   <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
                     {loading
                       ? Array.from({ length: 4 }).map((_, i) => <MediaChipSkeleton key={i} />)
-                      : albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)
+                      : albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images?.[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)
                     }
                   </div>
                 )}
                 {!loading && query.trim().length < 2 && playlists.length > 0 && (
                   <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
-                    {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images[0]?.url} onClick={() => setSelected(p)} />)}
+                    {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images?.[0]?.url} onClick={() => setSelected(p)} />)}
                   </div>
                 )}
                 <ul
