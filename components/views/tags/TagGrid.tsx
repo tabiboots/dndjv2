@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import SongChip from '@/components/ui/SongChip'
 import TagCard from '@/components/views/tags/TagCard'
 import type { TagSort } from '@/components/views/tags/SortMenu'
@@ -21,6 +21,7 @@ export default function TagGrid({
   selectedId,
   onSelect,
   recentlyTagged,
+  children,
 }: {
   tags: TagWithCount[]
   categories: Category[]
@@ -32,6 +33,7 @@ export default function TagGrid({
   selectedId: string | null
   onSelect: (id: string) => void
   recentlyTagged: Track[]
+  children?: ReactNode
 }) {
   const { playingUri, playTrack, pauseTrack } = usePlayback()
 
@@ -117,6 +119,7 @@ export default function TagGrid({
           </ul>
         </div>
       )}
+      {children}
     </div>
   )
 }

@@ -14,18 +14,20 @@ export default function NewTagDialog({
   onCreated,
   onCreateCategory,
   initialName = '',
+  initialHue,
 }: {
   categories: Category[]
   onClose: () => void
   onCreated: (tag: Tag) => void
   onCreateCategory: (name: string) => Promise<Category | null>
   initialName?: string
+  initialHue?: number
 }) {
   const uid = useUid()
   const { addTagLocal } = useTagMutators()
 
   const [name, setName] = useState(initialName)
-  const [hue, setHue] = useState(() => Math.floor(Math.random() * 360))
+  const [hue, setHue] = useState(() => initialHue ?? Math.floor(Math.random() * 360))
   const [sat, setSat] = useState(65)
   const [lit, setLit] = useState(55)
   const [categoryId, setCategoryId] = useState<string | null>(null)

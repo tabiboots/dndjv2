@@ -1,0 +1,4 @@
+## add persistant handling through the URL
+## UI for deploy screen
+## general header?
+## add a favicon

@@ -48,7 +48,7 @@ export default function Home() {
         <TagDataProvider>
           <PlaybackProvider playbackState={playbackState}>
             <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
-            <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView /></div>
+            <div className={activeView === 'Tags' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><TagsView onOpenSearch={() => setActiveView('Search')} /></div>
             <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView /></div>
           </PlaybackProvider>
         </TagDataProvider>
