@@ -11,6 +11,8 @@ export default function TagsHeaderStrip({
   sort,
   setSort,
   onNewTag,
+  editMode,
+  onToggleEdit,
 }: {
   tagCount: number
   categoryCount: number
@@ -19,6 +21,8 @@ export default function TagsHeaderStrip({
   sort: TagSort
   setSort: (s: TagSort) => void
   onNewTag: () => void
+  editMode: boolean
+  onToggleEdit: () => void
 }) {
   const [value, setValue] = useState('')
 
@@ -57,11 +61,23 @@ export default function TagsHeaderStrip({
       </div>
       <SortMenu sort={sort} setSort={setSort}/>
       <button
-        onClick={onNewTag}
-        className="flex items-center gap-1 h-8 px-3.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner active:scale-[0.99] shrink-0"
+        onClick={onToggleEdit}
+        className={`h-8 px-3.5 rounded-full text-sm font-semibold shrink-0 transition-all border ${
+          editMode
+            ? 'bg-gray-800 border-gray-700 text-white'
+            : 'bg-gray-100 border-gray-300 text-black hover:bg-gray-200 shadow-md active:shadow-inner active:scale-[0.99]'
+        }`}
       >
-        <span className="text-base leading-none">+</span> New tag
+        {editMode ? 'Done' : 'Edit'}
       </button>
+      {!editMode && (
+        <button
+          onClick={onNewTag}
+          className="flex items-center gap-1 h-8 px-3.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner active:scale-[0.99] shrink-0"
+        >
+          <span className="text-base leading-none">+</span> New tag
+        </button>
+      )}
     </div>
   )
 }

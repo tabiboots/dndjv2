@@ -18,3 +18,9 @@
   50% { transform: scale(1.04); opacity: 1; }
 }
 
+@keyframes jiggle {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+.jiggle { animation: jiggle 0.18s ease-in-out infinite; }
+

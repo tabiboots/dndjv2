@@ -3,3 +3,4 @@
 ## general header?
 ## add a favicon
 ## fix real time tag on SongChip when applying from TrackTagger
+## Finish edit tag mode on the Tags View

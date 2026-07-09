@@ -36,7 +36,7 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
   const recentByTag = useRecentTaggedAtByTag()
   const recentlyTagged = useUniqueRecentlyTagged(6)
   const trackCount = useTaggedTrackCount()
-  const { addCategoryLocal, patchCategory, removeCategoryLocal } = useTagMutators()
+  const { addCategoryLocal, patchCategory, removeCategoryLocal, patchTag, removeTagLocal } = useTagMutators()
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -44,6 +44,7 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set())
   // null = closed; {} = blank dialog; preset fields pre-fill it
   const [newTag, setNewTag] = useState<Partial<TagPreset> | null>(null)
+  const [editingTags, setEditingTags] = useState(false)
 
   // Dev-only screen-state preview: /?tagsState=empty or /?tagsState=sparse
   const [stateOverride] = useState<string | null>(() => {
@@ -79,23 +80,51 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
     return data
   }
 
-  const reorderCategory = (id: string, dir: -1 | 1) => {
-    const idx = categories.findIndex(c => c.id === id)
-    const swapIdx = idx + dir
-    if (idx < 0 || swapIdx < 0 || swapIdx >= categories.length) return
-    const a = categories[idx], b = categories[swapIdx]
-    patchCategory(a.id, { sort_order: b.sort_order })
-    patchCategory(b.id, { sort_order: a.sort_order })
-    Promise.all([
-      supabase.from('tag_categories').update({ sort_order: b.sort_order }).eq('id', a.id),
-      supabase.from('tag_categories').update({ sort_order: a.sort_order }).eq('id', b.id),
-    ])
+  const reorderCategory = (fromId: string, toId: string) => {
+    const fromIdx = categories.findIndex(c => c.id === fromId)
+    const toIdx = categories.findIndex(c => c.id === toId)
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
+    const reordered = [...categories]
+    const [item] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, item)
+    reordered.forEach((cat, i) => patchCategory(cat.id, { sort_order: i }))
+    Promise.all(reordered.map((cat, i) =>
+      supabase.from('tag_categories').update({ sort_order: i }).eq('id', cat.id)
+    ))
+  }
+
+  const reorderTag = (fromId: string, toId: string) => {
+    const fromTag = allTags.find(t => t.id === fromId)
+    if (!fromTag) return
+    const group = allTags
+      .filter(t => t.category_id === fromTag.category_id)
+      .sort((a, b) => a.sort_order - b.sort_order)
+    const fromIdx = group.findIndex(t => t.id === fromId)
+    const toIdx = group.findIndex(t => t.id === toId)
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
+    const reordered = [...group]
+    const [item] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, item)
+    reordered.forEach((tag, i) => patchTag(tag.id, { sort_order: i }))
+    Promise.all(reordered.map((tag, i) =>
+      supabase.from('tags').update({ sort_order: i }).eq('id', tag.id)
+    ))
+  }
+
+  const deleteTag = async (id: string) => {
+    if (!uid) return
+    if (selectedId === id) setSelectedId(null)
+    removeTagLocal(id)
+    await supabase.from('tags').delete().eq('id', id).eq('user_id', uid)
   }
 
   const deleteCategory = async (id: string) => {
     if (!uid) return
     removeCategoryLocal(id)
-    await supabase.from('tag_categories').delete().eq('id', id).eq('user_id', uid)
+    await Promise.all([
+      supabase.from('tag_categories').delete().eq('id', id).eq('user_id', uid),
+      supabase.from('tags').update({ category_id: null }).eq('category_id', id).eq('user_id', uid),
+    ])
   }
 
   return (
@@ -116,6 +145,8 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
             sort={sort}
             setSort={setSort}
             onNewTag={() => setNewTag({})}
+            editMode={editingTags}
+            onToggleEdit={() => setEditingTags(e => !e)}
           />
           <div className="flex-1 flex flex-row overflow-hidden">
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -140,6 +171,9 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
                 selectedId={selectedId}
                 onSelect={id => setSelectedId(prev => prev === id ? null : id)}
                 recentlyTagged={recentlyTagged}
+                editMode={editingTags}
+                onReorder={reorderTag}
+                onDeleteTag={deleteTag}
               >
                 {tags.length <= SPARSE_MAX && (
                   <SparseState

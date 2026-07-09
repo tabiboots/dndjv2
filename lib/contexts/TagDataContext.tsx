@@ -218,8 +218,16 @@ export function TagDataProvider({ children }: { children: React.ReactNode }) {
     setCategories(prev =>
       prev.map(c => c.id === id ? { ...c, ...patch } : c).sort((a, b) => a.sort_order - b.sort_order)
     )
-  const removeCategoryLocal = (id: string) =>
+  const removeCategoryLocal = (id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id))
+    setTags(prev => {
+      const updated = Object.values(prev).filter(t => t.category_id === id)
+      if (!updated.length) return prev
+      const next = { ...prev }
+      for (const t of updated) next[t.id] = { ...t, category_id: null }
+      return next
+    })
+  }
   const removeTrackTagLocal = (tagId: string, spotifyId: string) =>
     setTrackTagRows(prev => prev.filter(r => !(r.tag_id === tagId && r.spotify_id === spotifyId)))
 

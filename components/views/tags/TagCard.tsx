@@ -43,7 +43,7 @@ export default function TagCard({
       style={isSelected ? { boxShadow: `0 0 0 2px #f3f4f6, 0 0 0 4px ${color}` } : undefined}
     >
       {albumArts.length > 0 ? (
-        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 opacity-40 saturate-50">
+        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 opacity-80 saturate-40">
           {Array.from({ length: 4 }, (_, i) =>
             albumArts[i]
               ? <img key={i} src={albumArts[i]} alt="" className="w-full h-full object-cover" />
@@ -51,7 +51,7 @@ export default function TagCard({
           )}
         </div>
       ) : (
-        <div className="absolute inset-0" style={{ background: color, opacity: 0.1 }} />
+        <div className="absolute inset-0" style={{ background: color, opacity: 0.3 }} />
       )}
       <div className="absolute inset-0 pointer-events-none" style={{ background: color, opacity: 0.08, mixBlendMode: 'multiply' }} />
       <div className="absolute bottom-2 left-2 right-2 flex">
