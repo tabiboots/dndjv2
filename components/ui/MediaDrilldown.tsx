@@ -64,7 +64,7 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
       {error ? (
         <p className="text-xs text-red-400 px-3 py-3">{error}</p>
       ) : (
-        <ul className="overflow-y-auto flex flex-col gap-2 px-3 py-3 scrollbar-none">
+        <ul className="overflow-y-auto flex flex-col gap-2 px-3 py-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
           {loading
             ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)
             : tracks.map(track => (

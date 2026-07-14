@@ -42,7 +42,7 @@ function SortableTagCard({
         onClick={() => onRequestDelete(tag.id)}
         className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-600/80 text-white flex items-center justify-center text-sm leading-none hover:bg-red-500 transition-colors"
       >
-        ×
+        
       </button>
     </div>
   )

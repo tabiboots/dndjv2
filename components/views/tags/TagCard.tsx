@@ -39,7 +39,7 @@ export default function TagCard({
   return (
     <button
       onClick={onSelect}
-      className="relative overflow-hidden rounded-xl border border-gray-300 bg-gray-100 text-left transition-all duration-150 h-36 shadow-md hover:scale-[1.015] hover:shadow-lg"
+      className="block relative overflow-hidden rounded-xl border border-gray-300 bg-gray-100 text-left transition-all duration-150 h-36 w-full shadow-md hover:scale-[1.015] hover:shadow-lg"
       style={isSelected ? { boxShadow: `0 0 0 2px #f3f4f6, 0 0 0 4px ${color}` } : undefined}
     >
       {albumArts.length > 0 ? (
@@ -66,5 +66,5 @@ export default function TagCard({
 }
 
 export function TagCardSkeleton() {
-  return <div className="h-36 rounded-2xl border border-gray-300 bg-gray-200 shadow-md animate-pulse" />
+  return <div className="h-36 w-full rounded-2xl border border-gray-300 bg-gray-200 shadow-md animate-pulse" />
 }

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Track } from '@/types/spotify'
 import { tagColor } from '@/components/ui/TagChip'
-import { useAllTags, useCategories, useTagColor, useTagMutators, useUid, type Tag } from '@/lib/contexts/TagDataContext'
+import { useAllTags, useCategories, useTagColor, useTagMutators, useUid, type Tag, type TrackTagRow } from '@/lib/contexts/TagDataContext'
+import type { DBTrack } from '@/lib/spotify/dbTrack'
 
 const supabase = createClient()
 
@@ -33,7 +34,16 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
   const userId = useUid()
   const allTags = useAllTags()
   const categories = useCategories()
-  const { addTagLocal } = useTagMutators()
+  const { addTagLocal, addTrackTagLocal, removeTrackTagLocal } = useTagMutators()
+
+  const dbTrack: DBTrack = {
+    spotify_id: track.id!,
+    name: track.name,
+    artist_names: track.artists.map(a => a.name),
+    album_art_url: track.album.images?.[0]?.url ?? null,
+    duration_ms: track.duration_ms,
+    uri: track.uri,
+  }
 
   const [applied, setApplied] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
@@ -78,12 +88,15 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
       await supabase.from('track_tags').delete()
         .eq('tag_id', tag.id).eq('spotify_id', track.id).eq('user_id', userId)
       setApplied(prev => { const s = new Set(prev); s.delete(tag.id); return s })
+      removeTrackTagLocal(tag.id, track.id!)
     } else {
       const err = await upsertTrack()
       if (err) return
-      const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: tag.id, spotify_id: track.id, user_id: userId })
+      const tagged_at = new Date().toISOString()
+      const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: tag.id, spotify_id: track.id, user_id: userId, tagged_at })
       if (ttErr) { console.error('track_tags insert:', ttErr); return }
       setApplied(prev => new Set([...prev, tag.id]))
+      addTrackTagLocal({ tag_id: tag.id, spotify_id: track.id!, tagged_at }, dbTrack)
     }
   }
 
@@ -99,10 +112,12 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
 
     const err = await upsertTrack()
     if (err) return
-    const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: data.id, spotify_id: track.id, user_id: userId })
+    const tagged_at = new Date().toISOString()
+    const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: data.id, spotify_id: track.id, user_id: userId, tagged_at })
     if (ttErr) { console.error('track_tags insert (create):', ttErr); return }
 
     setApplied(prev => new Set([...prev, data.id]))
+    addTrackTagLocal({ tag_id: data.id, spotify_id: track.id!, tagged_at }, dbTrack)
     setFilter('')
   }
 

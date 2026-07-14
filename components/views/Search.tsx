@@ -120,7 +120,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="p-3">
+      <div className="p-3 relative">
         <input
           type="text"
           value={query}
@@ -129,6 +129,16 @@ export default function SearchView({ visible }: { visible?: boolean }) {
           className="w-full px-3 py-2 rounded-full bg-gray-200 border border-gray-200 shadow-inner text-sm outline-none placeholder:text-gray-400"
           autoFocus
         />
+        {query && (
+          <button
+            onClick={() => handleQueryChange('')}
+            className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {error && <p className="text-xs text-red-400 px-3 py-2">{error}</p>}
@@ -141,7 +151,7 @@ export default function SearchView({ visible }: { visible?: boolean }) {
             ) : (
               <>
                 {query.trim().length >= 2 && (loading || albums.length > 0) && (
-                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
                     {loading
                       ? Array.from({ length: 4 }).map((_, i) => <MediaChipSkeleton key={i} />)
                       : albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images?.[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)
@@ -149,13 +159,13 @@ export default function SearchView({ visible }: { visible?: boolean }) {
                   </div>
                 )}
                 {!loading && query.trim().length < 2 && playlists.length > 0 && (
-                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
+                  <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
                     {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images?.[0]?.url} onClick={() => setSelected(p)} />)}
                   </div>
                 )}
                 <ul
                   onScroll={handleScroll}
-                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 scrollbar-none [&::-webkit-scrollbar]:hidden mask-[linear-gradient(to_bottom,transparent,black_20px)]"
+                  className="overflow-y-auto flex flex-col gap-2 px-3 pb-3 transition-all duration-300 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300 mask-[linear-gradient(to_bottom,transparent,black_20px)]"
                 >
                   {loading
                     ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)

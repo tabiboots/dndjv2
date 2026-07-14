@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import SongChip from '@/components/ui/SongChip'
 import { tagColor } from '@/components/ui/TagChip'
 import ColorPicker from '@/components/views/tags/ColorPicker'
-import { useTagMutators, useTracksForTag, useUid, type Category, type Tag } from '@/lib/contexts/TagDataContext'
+import { useTracksForTag, useUid, type Category, type Tag, type TrackTagRow } from '@/lib/contexts/TagDataContext'
 import { usePlayback } from '@/lib/contexts/PlaybackContext'
 import { hslToTriplet, tripletToHsl } from '@/lib/tagColors'
+import type { DBTrack } from '@/lib/spotify/dbTrack'
 import type { Track } from '@/types/spotify'
 
 const supabase = createClient()
@@ -25,8 +27,8 @@ export default function TagDetailPanel({
   onCreateCategory: (name: string) => Promise<Category | null>
 }) {
   const uid = useUid()
+  const queryClient = useQueryClient()
   const tracks = useTracksForTag(tag.id)
-  const { patchTag, removeTagLocal, removeTrackTagLocal } = useTagMutators()
   const { playingUri, playTrack, pauseTrack } = usePlayback()
 
   const [nameInput, setNameInput] = useState(tag.name)
@@ -39,45 +41,76 @@ export default function TagDetailPanel({
 
   const activeColor = tag.color ?? tagColor(tag.id)
 
-  const saveName = async () => {
+  const updateTag = useMutation({
+    mutationFn: async (patch: Partial<Tag>) => {
+      await supabase.from('tags').update(patch).eq('id', tag.id).eq('user_id', uid!)
+    },
+    onMutate: (patch) => {
+      queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+        prev?.map(t => t.id === tag.id ? { ...t, ...patch } : t) ?? [])
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', uid] })
+    },
+  })
+
+  const deleteTagMutation = useMutation({
+    mutationFn: async () => {
+      await supabase.from('tags').delete().eq('id', tag.id).eq('user_id', uid!)
+    },
+    onMutate: () => {
+      queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+        prev?.filter(t => t.id !== tag.id) ?? [])
+    },
+    onSuccess: onClose,
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', uid] })
+    },
+  })
+
+  const removeTrackMutation = useMutation({
+    mutationFn: async (trackId: string) => {
+      await supabase.from('track_tags').delete()
+        .eq('tag_id', tag.id).eq('spotify_id', trackId).eq('user_id', uid!)
+    },
+    onMutate: (trackId) => {
+      queryClient.setQueryData<{ rows: TrackTagRow[], tracksById: Record<string, DBTrack> }>(
+        ['track-tags', uid],
+        prev => prev ? { ...prev, rows: prev.rows.filter(r => !(r.tag_id === tag.id && r.spotify_id === trackId)) } : prev
+      )
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['track-tags', uid] })
+    },
+  })
+
+  const saveName = () => {
     const name = nameInput.trim()
     if (!uid || !name || name === tag.name) return
-    patchTag(tag.id, { name })
-    await supabase.from('tags').update({ name }).eq('id', tag.id).eq('user_id', uid)
+    updateTag.mutate({ name })
   }
 
-  const commitColor = async (h: number, s: number, l: number) => {
-    if (!uid) return
-    setHue(h); setSat(s); setLit(l)
-    const color = tripletToHsl(h, s, l)
-    patchTag(tag.id, { color })
-    await supabase.from('tags').update({ color }).eq('id', tag.id).eq('user_id', uid)
-  }
-
+  // previewColor has no DB write — just updates the cache for live drag feedback
   const previewColor = (h: number, s: number, l: number) => {
     setHue(h); setSat(s); setLit(l)
-    patchTag(tag.id, { color: tripletToHsl(h, s, l) })
+    queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+      prev?.map(t => t.id === tag.id ? { ...t, color: tripletToHsl(h, s, l) } : t) ?? [])
   }
 
-  const updateCategory = async (category_id: string | null) => {
+  const commitColor = (h: number, s: number, l: number) => {
+    setHue(h); setSat(s); setLit(l)
+    updateTag.mutate({ color: tripletToHsl(h, s, l) })
+  }
+
+  const updateCategory = (category_id: string | null) => {
     if (!uid) return
-    patchTag(tag.id, { category_id })
-    await supabase.from('tags').update({ category_id }).eq('id', tag.id).eq('user_id', uid)
+    updateTag.mutate({ category_id })
   }
 
-  const deleteTag = async () => {
+  const deleteTag = () => {
     if (!uid) return
     if (!confirm(`Delete tag "${tag.name}"? This will remove it from all songs.`)) return
-    await supabase.from('tags').delete().eq('id', tag.id).eq('user_id', uid)
-    removeTagLocal(tag.id)
-    onClose()
-  }
-
-  const removeTrack = async (track: Track) => {
-    if (!uid || !track.id) return
-    removeTrackTagLocal(tag.id, track.id)
-    await supabase.from('track_tags').delete()
-      .eq('tag_id', tag.id).eq('spotify_id', track.id).eq('user_id', uid)
+    deleteTagMutation.mutate()
   }
 
   const doCreateCategory = async (name: string) => {
@@ -190,7 +223,7 @@ export default function TagDetailPanel({
               onPause={pauseTrack}
             >
               <button
-                onClick={() => removeTrack(track)}
+                onClick={() => track.id && removeTrackMutation.mutate(track.id)}
                 className="text-gray-300 hover:text-red-400 transition-colors shrink-0 ml-1"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

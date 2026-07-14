@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import TrackChip from './TrackChip'
 import PlayerControls from './PlayerControls'
 
@@ -25,6 +26,39 @@ export default function Footer({ player, playbackState, isReady, fallbackTrack, 
   const track: DisplayTrack | null = sdkTrack ?? (isReady ? fallbackTrack ?? null : null)
   const activeIndex = views.indexOf(active)
 
+  const [volume, setVolume] = useState(0.5)
+  const volBarRef = useRef<HTMLDivElement>(null)
+  const draggingVol = useRef(false)
+
+  const pctFromVolEvent = (e: React.PointerEvent) => {
+    const rect = volBarRef.current!.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+  }
+
+  const onVolPointerDown = (e: React.PointerEvent) => {
+    if (!player) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    draggingVol.current = true
+    const v = pctFromVolEvent(e)
+    setVolume(v)
+    player.setVolume(v)
+  }
+
+  const onVolPointerMove = (e: React.PointerEvent) => {
+    if (!draggingVol.current || !player) return
+    const v = pctFromVolEvent(e)
+    setVolume(v)
+    player.setVolume(v)
+  }
+
+  const onVolPointerUp = (e: React.PointerEvent) => {
+    if (!draggingVol.current) return
+    draggingVol.current = false
+    const v = pctFromVolEvent(e)
+    setVolume(v)
+    player?.setVolume(v)
+  }
+
   return (
     <div className="h-16 shrink-0 bg-white flex items-stretch shadow-[inset_0_1px_0_0_var(--color-gray-200),inset_0_2px_0_0_white]">
 
@@ -38,8 +72,32 @@ export default function Footer({ player, playbackState, isReady, fallbackTrack, 
         <PlayerControls player={player} playbackState={playbackState} />
       </div>
 
-      {/* Right: view nav */}
-      <div className="flex-1 flex items-center justify-end px-4">
+      {/* Right: volume + view nav */}
+      <div className="flex-1 flex items-center justify-end gap-3 px-4">
+        <div className="flex items-center gap-1.5">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 shrink-0">
+            {volume === 0
+              ? <path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6" />
+              : volume < 0.5
+              ? <><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+              : <><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+            }
+          </svg>
+          <div
+            className="group w-16 py-1.5 -my-1.5 cursor-pointer touch-none"
+            onPointerDown={onVolPointerDown}
+            onPointerMove={onVolPointerMove}
+            onPointerUp={onVolPointerUp}
+          >
+            <div ref={volBarRef} className="h-1 bg-gray-200 rounded-full border border-gray-200 shadow-inner overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gray-400 group-hover:bg-gray-500 transition-none"
+                style={{ width: `${volume * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="relative flex items-center bg-gray-200 rounded-full p-1 border border-gray-200 shadow-inner">
           <div
             className="absolute left-1 top-1 bottom-1 w-12 bg-gray-100 rounded-full shadow-sm transition-transform duration-200 ease-in-out"

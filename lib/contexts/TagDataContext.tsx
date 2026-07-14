@@ -1,7 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { useTagsQuery } from '@/lib/hooks/useTagsQuery'
+import { useCategoriesQuery } from '@/lib/hooks/useCategoriesQuery'
+import { useTrackTagsQuery } from '@/lib/hooks/useTrackTagsQuery'
 import { dbToTrack, type DBTrack } from '@/lib/spotify/dbTrack'
 import type { Track } from '@/types/spotify'
 
@@ -16,6 +20,7 @@ type Mutators = {
   addCategoryLocal: (cat: Category) => void
   patchCategory: (id: string, patch: Partial<Category>) => void
   removeCategoryLocal: (id: string) => void
+  addTrackTagLocal: (row: TrackTagRow, track: DBTrack) => void
   removeTrackTagLocal: (tagId: string, spotifyId: string) => void
 }
 
@@ -44,6 +49,7 @@ const TagDataContext = createContext<TagDataValue>({
   addCategoryLocal: noop,
   patchCategory: noop,
   removeCategoryLocal: noop,
+  addTrackTagLocal: noop,
   removeTrackTagLocal: noop,
 })
 
@@ -139,67 +145,52 @@ export function useRecentTaggedAtByTag(): Record<string, string> {
   }, [trackTagRows])
 }
 export function useTagMutators(): Mutators {
-  const { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal } = useContext(TagDataContext)
-  return { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal }
+  const { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, addTrackTagLocal, removeTrackTagLocal } = useContext(TagDataContext)
+  return { addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, addTrackTagLocal, removeTrackTagLocal }
 }
 
 const supabase = createClient()
 
 export function TagDataProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient()
   const [uid, setUid] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
-  const [tags, setTags] = useState<Record<string, Tag>>({})
-  const [categories, setCategories] = useState<Category[]>([])
-  const [trackTagRows, setTrackTagRows] = useState<TrackTagRow[]>([])
-  const [tracksById, setTracksById] = useState<Record<string, DBTrack>>({})
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null))
   }, [])
 
+  const tagsQuery = useTagsQuery(uid)
+  const categoriesQuery = useCategoriesQuery(uid)
+  const trackTagsQuery = useTrackTagsQuery(uid)
+
+  const loaded = tagsQuery.isSuccess && categoriesQuery.isSuccess && trackTagsQuery.isSuccess
+
+  const tags = useMemo(() => {
+    const next: Record<string, Tag> = {}
+    for (const t of tagsQuery.data ?? []) next[t.id] = t
+    return next
+  }, [tagsQuery.data])
+
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data])
+  const trackTagRows = useMemo(() => trackTagsQuery.data?.rows ?? [], [trackTagsQuery.data])
+  const tracksById = useMemo(() => trackTagsQuery.data?.tracksById ?? {}, [trackTagsQuery.data])
+
   useEffect(() => {
     if (!uid) return
-
-    const loadTags = async () => {
-      const { data } = await supabase.from('tags').select('id, name, color, category_id, sort_order').eq('user_id', uid).order('sort_order')
-      const next: Record<string, Tag> = {}
-      for (const t of data ?? []) next[t.id] = t
-      setTags(next)
-    }
-
-    const loadCategories = async () => {
-      const { data } = await supabase.from('tag_categories').select('id, name, sort_order').eq('user_id', uid).order('sort_order')
-      setCategories(data ?? [])
-    }
-
-    const loadTrackTags = async () => {
-      const { data } = await supabase
-        .from('track_tags')
-        .select('spotify_id, tag_id, tagged_at, tracks(spotify_id, name, artist_names, album_art_url, duration_ms, uri)')
-        .eq('user_id', uid)
-        .order('tagged_at', { ascending: false })
-      const rows: TrackTagRow[] = []
-      const byId: Record<string, DBTrack> = {}
-      for (const r of data ?? []) {
-        rows.push({ spotify_id: r.spotify_id, tag_id: r.tag_id, tagged_at: r.tagged_at })
-        const track = r.tracks as unknown as DBTrack | null
-        if (track) byId[track.spotify_id] = track
-      }
-      setTrackTagRows(rows)
-      setTracksById(byId)
-    }
-
-    Promise.all([loadTags(), loadCategories(), loadTrackTags()]).then(() => setLoaded(true))
-
     const channel = supabase
       .channel('tag-data')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tags',           filter: `user_id=eq.${uid}` }, loadTags)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tag_categories', filter: `user_id=eq.${uid}` }, loadCategories)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'track_tags',     filter: `user_id=eq.${uid}` }, loadTrackTags)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tags',           filter: `user_id=eq.${uid}` }, () => {
+        void queryClient.refetchQueries({ queryKey: ['tags', uid] })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tag_categories', filter: `user_id=eq.${uid}` }, () => {
+        void queryClient.refetchQueries({ queryKey: ['categories', uid] })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'track_tags',     filter: `user_id=eq.${uid}` }, () => {
+        void queryClient.refetchQueries({ queryKey: ['track-tags', uid] })
+      })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
-  }, [uid])
+  }, [uid, queryClient])
 
   const trackTags = useMemo(() => {
     const next: Record<string, string[]> = {}
@@ -207,36 +198,53 @@ export function TagDataProvider({ children }: { children: React.ReactNode }) {
     return next
   }, [trackTagRows])
 
-  const addTagLocal = (tag: Tag) => setTags(prev => ({ ...prev, [tag.id]: tag }))
+  // ponytail: mutators write to query cache directly for now; replaced by useMutation in Phase 4
+  const addTagLocal = (tag: Tag) =>
+    queryClient.setQueryData<Tag[]>(['tags', uid], prev => [...(prev ?? []), tag])
+
   const patchTag = (id: string, patch: Partial<Tag>) =>
-    setTags(prev => prev[id] ? { ...prev, [id]: { ...prev[id], ...patch } } : prev)
+    queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+      prev?.map(t => t.id === id ? { ...t, ...patch } : t) ?? [])
+
   const removeTagLocal = (id: string) =>
-    setTags(prev => { const next = { ...prev }; delete next[id]; return next })
+    queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+      prev?.filter(t => t.id !== id) ?? [])
+
   const addCategoryLocal = (cat: Category) =>
-    setCategories(prev => [...prev.filter(c => c.id !== cat.id), cat].sort((a, b) => a.sort_order - b.sort_order))
+    queryClient.setQueryData<Category[]>(['categories', uid], prev =>
+      [...(prev?.filter(c => c.id !== cat.id) ?? []), cat].sort((a, b) => a.sort_order - b.sort_order))
+
   const patchCategory = (id: string, patch: Partial<Category>) =>
-    setCategories(prev =>
-      prev.map(c => c.id === id ? { ...c, ...patch } : c).sort((a, b) => a.sort_order - b.sort_order)
-    )
+    queryClient.setQueryData<Category[]>(['categories', uid], prev =>
+      prev?.map(c => c.id === id ? { ...c, ...patch } : c).sort((a, b) => a.sort_order - b.sort_order) ?? [])
+
   const removeCategoryLocal = (id: string) => {
-    setCategories(prev => prev.filter(c => c.id !== id))
-    setTags(prev => {
-      const updated = Object.values(prev).filter(t => t.category_id === id)
-      if (!updated.length) return prev
-      const next = { ...prev }
-      for (const t of updated) next[t.id] = { ...t, category_id: null }
-      return next
-    })
+    queryClient.setQueryData<Category[]>(['categories', uid], prev => prev?.filter(c => c.id !== id) ?? [])
+    queryClient.setQueryData<Tag[]>(['tags', uid], prev =>
+      prev?.map(t => t.category_id === id ? { ...t, category_id: null } : t) ?? [])
   }
+
+  const addTrackTagLocal = (row: TrackTagRow, track: DBTrack) =>
+    queryClient.setQueryData<{ rows: TrackTagRow[], tracksById: Record<string, DBTrack> }>(
+      ['track-tags', uid],
+      prev => prev
+        ? { rows: [row, ...prev.rows], tracksById: { ...prev.tracksById, [track.spotify_id]: track } }
+        : prev
+    )
+
   const removeTrackTagLocal = (tagId: string, spotifyId: string) =>
-    setTrackTagRows(prev => prev.filter(r => !(r.tag_id === tagId && r.spotify_id === spotifyId)))
+    queryClient.setQueryData<{ rows: TrackTagRow[], tracksById: Record<string, DBTrack> }>(
+      ['track-tags', uid],
+      prev => prev ? { ...prev, rows: prev.rows.filter(r => !(r.tag_id === tagId && r.spotify_id === spotifyId)) } : prev
+    )
 
   return (
     <TagDataContext.Provider value={{
       uid, loaded, tags, categories, trackTagRows, trackTags, tracksById,
-      addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, removeTrackTagLocal,
+      addTagLocal, patchTag, removeTagLocal, addCategoryLocal, patchCategory, removeCategoryLocal, addTrackTagLocal, removeTrackTagLocal,
     }}>
-      {children}
+    {children}
+
     </TagDataContext.Provider>
   )
 }

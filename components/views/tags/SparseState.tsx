@@ -34,7 +34,7 @@ export default function SparseState({
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tips</p>
         <div className="grid grid-cols-3 gap-3">
           {TIPS.map(tip => (
-            <div key={tip} className="flex items-start gap-2 p-3 rounded-2xl bg-gray-100 border border-gray-300 shadow-md">
+            <div key={tip.lead} className="flex items-start gap-2 p-3 rounded-2xl bg-gray-100 border border-gray-300 shadow-md">
               <span className="text-base leading-none">{tip.lead}</span>
               <p className="text-xs text-gray-500">{tip.text}</p>
             </div>

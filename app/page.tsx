@@ -8,6 +8,7 @@ import DeployView from '@/components/views/Deploy'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
 import { TagDataProvider } from '@/lib/contexts/TagDataContext'
 import { PlaybackProvider } from '@/lib/contexts/PlaybackContext'
+import { QueryProvider } from '@/lib/QueryProvider'
 
 const VIEWS = ['Search', 'Tags', 'Deploy'] as const
 type View = typeof VIEWS[number]
@@ -45,6 +46,7 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       <main className="flex-1 overflow-hidden flex flex-col">
+        <QueryProvider>
         <TagDataProvider>
           <PlaybackProvider playbackState={playbackState}>
             <div className={activeView === 'Search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><SearchView visible={activeView === 'Search'} /></div>
@@ -52,6 +54,7 @@ export default function Home() {
             <div className={activeView === 'Deploy' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}><DeployView /></div>
           </PlaybackProvider>
         </TagDataProvider>
+        </QueryProvider>
       </main>
       <Footer
         player={player}

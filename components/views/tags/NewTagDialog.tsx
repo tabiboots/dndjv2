@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import ColorPicker from '@/components/views/tags/ColorPicker'
-import { useTagMutators, useUid, type Category, type Tag } from '@/lib/contexts/TagDataContext'
+import { useUid, type Category, type Tag } from '@/lib/contexts/TagDataContext'
 import { tripletToHsl } from '@/lib/tagColors'
 
 const supabase = createClient()
@@ -24,7 +25,7 @@ export default function NewTagDialog({
   initialHue?: number
 }) {
   const uid = useUid()
-  const { addTagLocal } = useTagMutators()
+  const queryClient = useQueryClient()
 
   const [name, setName] = useState(initialName)
   const [hue, setHue] = useState(() => initialHue ?? Math.floor(Math.random() * 360))
@@ -33,24 +34,30 @@ export default function NewTagDialog({
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [addingCat, setAddingCat] = useState(false)
   const [newCatInput, setNewCatInput] = useState('')
-  const [submitting, setSubmitting] = useState(false)
 
   const color = tripletToHsl(hue, sat, lit)
 
-  const submit = async (e: React.FormEvent) => {
+  const createTag = useMutation({
+    mutationFn: async ({ trimmed, categoryId }: { trimmed: string; categoryId: string | null }) => {
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({ name: trimmed, color, category_id: categoryId, user_id: uid! })
+        .select('id, name, color, category_id, sort_order')
+        .single()
+      if (error || !data) throw error ?? new Error('Insert failed')
+      return data as Tag
+    },
+    onSuccess: (tag) => {
+      queryClient.setQueryData<Tag[]>(['tags', uid], prev => [...(prev ?? []), tag])
+      onCreated(tag)
+    },
+  })
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = name.trim()
-    if (!uid || !trimmed || submitting) return
-    setSubmitting(true)
-    const { data } = await supabase
-      .from('tags')
-      .insert({ name: trimmed, color, category_id: categoryId, user_id: uid })
-      .select('id, name, color, category_id, sort_order')
-      .single()
-    setSubmitting(false)
-    if (!data) return
-    addTagLocal(data)
-    onCreated(data)
+    if (!uid || !trimmed || createTag.isPending) return
+    createTag.mutate({ trimmed, categoryId })
   }
 
   const createCategory = async (catName: string) => {
@@ -145,7 +152,7 @@ export default function NewTagDialog({
           </button>
           <button
             type="submit"
-            disabled={!name.trim() || submitting}
+            disabled={!name.trim() || createTag.isPending}
             className="px-3.5 py-1.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner disabled:opacity-40 disabled:pointer-events-none"
           >
             Create tag
