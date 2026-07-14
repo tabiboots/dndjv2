@@ -8,7 +8,7 @@ import MediaChip, { MediaChipSkeleton } from '@/components/ui/MediaChip'
 import MediaDrilldown from '@/components/ui/MediaDrilldown'
 import { usePlayback } from '@/lib/contexts/PlaybackContext'
 
-export default function SearchView({ visible }: { visible?: boolean }) {
+export default function SearchView({ visible, quickTagTrack }: { visible?: boolean; quickTagTrack?: Track | null }) {
   const [query, setQuery] = useState('')
   const [tracks, setTracks] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
@@ -42,6 +42,13 @@ export default function SearchView({ visible }: { visible?: boolean }) {
   useEffect(() => {
     if (visible && query.trim().length < 2) loadRecent()
   }, [visible])
+
+  // footer quicktag: page.tsx builds a fresh object per click, so identity changes re-open the panel
+  const [prevQuickTag, setPrevQuickTag] = useState(quickTagTrack)
+  if (quickTagTrack !== prevQuickTag) {
+    setPrevQuickTag(quickTagTrack)
+    if (quickTagTrack) setTaggedTrack(quickTagTrack)
+  }
 
   const fetchPage = async (q: string, off: number, replace: boolean) => {
     const res = await fetch(

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import TrackChip from './TrackChip'
 import PlayerControls from './PlayerControls'
+import { TagButton } from '@/components/ui/SongChip'
 
 export interface DisplayTrack {
   name: string
@@ -19,9 +20,10 @@ interface Props {
   views: readonly string[]
   active: string
   onViewChange: (view: string) => void
+  onTagNowPlaying?: () => void
 }
 
-export default function Footer({ player, playbackState, isReady, fallbackTrack, error, views, active, onViewChange }: Props) {
+export default function Footer({ player, playbackState, isReady, fallbackTrack, error, views, active, onViewChange, onTagNowPlaying }: Props) {
   const sdkTrack = playbackState?.track_window.current_track ?? null
   const track: DisplayTrack | null = sdkTrack ?? (isReady ? fallbackTrack ?? null : null)
   const activeIndex = views.indexOf(active)
@@ -63,8 +65,9 @@ export default function Footer({ player, playbackState, isReady, fallbackTrack, 
     <div className="h-16 shrink-0 bg-white flex items-stretch shadow-[inset_0_1px_0_0_var(--color-gray-200),inset_0_2px_0_0_white]">
 
       {/* Left: track info */}
-      <div className="flex-1 flex items-center px-4 min-w-0">
+      <div className="flex-1 flex items-center gap-3 px-4 min-w-0">
         <TrackChip track={track} isReady={isReady} error={error} />
+        {sdkTrack?.id && onTagNowPlaying && <TagButton onClick={onTagNowPlaying} className="w-7 h-7" />}
       </div>
 
       {/* Center: controls + progress */}

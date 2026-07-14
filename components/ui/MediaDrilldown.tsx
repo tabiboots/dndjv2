@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Album, Playlist, Track } from '@/types/spotify'
 import SongChip, { TagButton, SongChipSkeleton } from '@/components/ui/SongChip'
 import { usePlayback } from '@/lib/contexts/PlaybackContext'
@@ -18,30 +18,60 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
 }) {
   const [tracks, setTracks] = useState<Track[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const nextOffsetRef = useRef(0)
+  const fetchingRef = useRef(false)
+  const sentinelRef = useRef<HTMLLIElement>(null)
   const { playingUri, playTrack, pauseTrack } = usePlayback()
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    setTracks([])
+  const loadPage = (offset: number) => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
 
-    const url = isAlbum(item)
+    const base = isAlbum(item)
       ? `/api/spotify/albums/${item.id}/tracks`
       : `/api/spotify/playlists/${item.id}/items`
 
-    fetch(url)
+    fetch(`${base}?offset=${offset}`)
       .then(r => r.json())
       .then(({ data, error: e }) => {
         if (e) { setError(e); return }
         const raw: Track[] = isAlbum(item)
           ? (data?.items ?? []).map((t: Omit<Track, 'album'>) => ({ ...t, album: { images: item.images } }))
           : (data?.items ?? []).map((i: { item: Track }) => i.item).filter(Boolean)
-        setTracks(raw)
+        // offset by raw page size, not tracks.length: playlist pages can contain null items
+        nextOffsetRef.current = offset + (data?.items?.length ?? 0)
+        setHasMore(data?.next != null)
+        setTracks(prev => offset === 0 ? raw : [...prev, ...raw])
       })
       .catch(() => setError('Failed to load tracks'))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        fetchingRef.current = false
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    setTracks([])
+    setHasMore(false)
+    nextOffsetRef.current = 0
+    loadPage(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id])
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadPage(nextOffsetRef.current)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, tracks.length])
 
   const art = item.images?.[0]?.url
   const subtitle = isAlbum(item) ? item.artists.map(a => a.name).join(', ') : null
@@ -67,9 +97,9 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
         <ul className="overflow-y-auto flex flex-col gap-2 px-3 py-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
           {loading
             ? Array.from({ length: 6 }).map((_, i) => <SongChipSkeleton key={i} />)
-            : tracks.map(track => (
+            : tracks.map((track, i) => (
             <SongChip
-              key={track.id}
+              key={`${track.id}:${i}`}
               track={track}
               isActive={playingUri === track.uri}
               onClick={t => playTrack(t, tracks)}
@@ -78,6 +108,11 @@ export default function MediaDrilldown({ item, onBack, onTag }: {
               <TagButton onClick={() => onTag(track)} />
             </SongChip>
           ))}
+          {!loading && hasMore && (
+            <li ref={sentinelRef}>
+              <SongChipSkeleton />
+            </li>
+          )}
         </ul>
       )}
     </div>
