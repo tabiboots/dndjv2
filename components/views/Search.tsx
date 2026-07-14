@@ -7,6 +7,7 @@ import TrackTagger from '@/components/ui/TrackTagger'
 import MediaChip, { MediaChipSkeleton } from '@/components/ui/MediaChip'
 import MediaDrilldown from '@/components/ui/MediaDrilldown'
 import { usePlayback } from '@/lib/contexts/PlaybackContext'
+import { useSentinel } from '@/hooks/useSentinel'
 
 export default function SearchView({ visible, quickTagTrack }: { visible?: boolean; quickTagTrack?: Track | null }) {
   const [query, setQuery] = useState('')
@@ -24,20 +25,77 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // live query for staleness checks inside async callbacks (state closures go stale)
+  const queryRef = useRef('')
+
+  const [playlistsHasMore, setPlaylistsHasMore] = useState(false)
+  const [albumsHasMore, setAlbumsHasMore] = useState(false)
+  const playlistOffsetRef = useRef(0)
+  const albumOffsetRef = useRef(0)
+  const loadingPlaylistsRef = useRef(false)
+  const loadingAlbumsRef = useRef(false)
+
+  const loadPlaylists = async (offset: number) => {
+    if (loadingPlaylistsRef.current) return
+    loadingPlaylistsRef.current = true
+    try {
+      const acc: Playlist[] = []
+      let off = offset
+      let more = true
+      // drain pages until something survives the server's owned-only filter,
+      // so the sentinel never stalls on a page that filtered down to nothing
+      while (more && acc.length === 0) {
+        const { data } = await fetch(`/api/spotify/playlists?offset=${off}`).then(r => r.json())
+        acc.push(...(data?.items ?? []))
+        off = data?.nextOffset ?? off
+        more = data?.next ?? false
+      }
+      playlistOffsetRef.current = off
+      setPlaylistsHasMore(more)
+      setPlaylists(prev => offset === 0 ? acc : [...prev, ...acc])
+    } catch {
+      // strip is decorative on the recents screen; fail quiet like loadRecent
+    } finally {
+      loadingPlaylistsRef.current = false
+    }
+  }
+
+  const loadMoreAlbums = () => {
+    if (loadingAlbumsRef.current) return
+    loadingAlbumsRef.current = true
+    fetch(`/api/spotify/search?q=${encodeURIComponent(query.trim())}&type=album&market=from_token&limit=10&offset=${albumOffsetRef.current}`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        const items: Album[] = data?.albums?.items ?? []
+        albumOffsetRef.current += items.length
+        setAlbumsHasMore(items.length > 0 && albumOffsetRef.current < (data?.albums?.total ?? 0))
+        setAlbums(prev => {
+          const seen = new Set(prev.map(a => a.id))
+          return [...prev, ...items.filter(a => !seen.has(a.id))]
+        })
+      })
+      .catch(() => {})
+      .finally(() => { loadingAlbumsRef.current = false })
+  }
 
   const loadRecent = () => {
-    Promise.all([
-      fetch('/api/spotify/recently-played').then(r => r.json()),
-      fetch('/api/spotify/playlists').then(r => r.json()),
-    ]).then(([recentData, playlistData]) => {
-      const seen = new Set<string | null>()
-      const items: Track[] = (recentData.data?.items ?? [])
-        .map((i: { track: Track }) => i.track)
-        .filter((t: Track) => { if (seen.has(t.id)) return false; seen.add(t.id); return true })
-      setTracks(items)
-      setPlaylists(playlistData.data?.items ?? [])
-    }).catch(() => {})
+    void loadPlaylists(0)
+    fetch('/api/spotify/recently-played')
+      .then(r => r.json())
+      .then(recentData => {
+        // stale response: user started searching while this was in flight
+        if (queryRef.current.trim().length >= 2) return
+        const seen = new Set<string | null>()
+        const items: Track[] = (recentData.data?.items ?? [])
+          .map((i: { track: Track }) => i.track)
+          .filter((t: Track) => { if (seen.has(t.id)) return false; seen.add(t.id); return true })
+        setTracks(items)
+      }).catch(() => {})
   }
+
+  const playlistSentinelRef = useSentinel<HTMLDivElement>(
+    playlistsHasMore, () => loadPlaylists(playlistOffsetRef.current), playlists.length)
+  const albumSentinelRef = useSentinel<HTMLDivElement>(albumsHasMore, loadMoreAlbums, albums.length)
 
   useEffect(() => {
     if (visible && query.trim().length < 2) loadRecent()
@@ -50,9 +108,10 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
     if (quickTagTrack) setTaggedTracks([quickTagTrack])
   }
 
-  const fetchPage = async (q: string, off: number, replace: boolean) => {
+  const fetchPage = async (q: string, off: number, replace: boolean, signal?: AbortSignal) => {
     const res = await fetch(
-      `/api/spotify/search?q=${encodeURIComponent(q)}&type=track,album&market=from_token&limit=10&offset=${off}`
+      `/api/spotify/search?q=${encodeURIComponent(q)}&type=track,album&market=from_token&limit=10&offset=${off}`,
+      { signal }
     )
     const { data, error: apiError, code } = await res.json()
 
@@ -66,7 +125,12 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
     const total: number = data?.tracks?.total ?? 0
     const newOffset = off + items.length
 
-    if (replace) setAlbums(data?.albums?.items ?? [])
+    if (replace) {
+      const albumItems: Album[] = data?.albums?.items ?? []
+      setAlbums(albumItems)
+      albumOffsetRef.current = albumItems.length
+      setAlbumsHasMore(albumItems.length < (data?.albums?.total ?? 0))
+    }
     setTracks(prev => {
       if (replace) return items
       const seen = new Set(prev.map(t => t.id))
@@ -78,6 +142,7 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
   const handleQueryChange = (value: string) => {
     setQuery(value)
+    queryRef.current = value
     setSelected(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     abortRef.current?.abort()
@@ -91,11 +156,12 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
     debounceRef.current = setTimeout(async () => {
       abortRef.current = new AbortController()
-      setLoading(true); setError(null); setOffset(0); setHasMore(false); setAlbums([]); setPlaylists([])
+      setLoading(true); setError(null); setOffset(0); setHasMore(false)
+      setAlbums([]); setAlbumsHasMore(false); setPlaylists([]); setPlaylistsHasMore(false)
       try {
-        await fetchPage(trimmed, 0, true)
-      } catch {
-        setError('Search failed')
+        await fetchPage(trimmed, 0, true, abortRef.current.signal)
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) setError('Search failed')
       } finally {
         setLoading(false)
       }
@@ -117,9 +183,9 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
     setLoadingMore(true)
     try {
-      await fetchPage(query.trim(), offset, false)
-    } catch {
-      setError('Search failed')
+      await fetchPage(query.trim(), offset, false, abortRef.current?.signal)
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'AbortError')) setError('Search failed')
     } finally {
       setLoadingMore(false)
     }
@@ -163,11 +229,13 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
                       ? Array.from({ length: 4 }).map((_, i) => <MediaChipSkeleton key={i} />)
                       : albums.map(a => <MediaChip key={a.id} name={a.name} imageUrl={a.images?.[0]?.url} subtitle={a.artists.map(x => x.name).join(', ')} onClick={() => setSelected(a)} />)
                     }
+                    {!loading && albumsHasMore && <div ref={albumSentinelRef}><MediaChipSkeleton /></div>}
                   </div>
                 )}
                 {!loading && query.trim().length < 2 && playlists.length > 0 && (
                   <div className="flex gap-3 overflow-x-auto px-3 pt-1 pb-3 shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
                     {playlists.map(p => <MediaChip key={p.id} name={p.name} imageUrl={p.images?.[0]?.url} onClick={() => setSelected(p)} />)}
+                    {playlistsHasMore && <div ref={playlistSentinelRef}><MediaChipSkeleton /></div>}
                   </div>
                 )}
                 <ul

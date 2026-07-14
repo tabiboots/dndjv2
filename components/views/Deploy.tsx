@@ -18,6 +18,12 @@ type DeployResult = {
   playError: string | null
 }
 
+function formatDuration(ms: number) {
+  const m = Math.round(ms / 60000)
+  const h = Math.floor(m / 60)
+  return h ? `${h}h ${m % 60}m` : `${m}m`
+}
+
 function shuffled<T>(arr: T[]): T[] {
   const out = [...arr]
   for (let i = out.length - 1; i > 0; i--) {
@@ -184,7 +190,9 @@ export default function DeployView() {
             disabled={queue.length === 0 || loadingQueue || deploying}
             className="w-full py-1.5 rounded-full bg-gray-100 border border-gray-300 shadow-md text-sm font-semibold text-black transition-all hover:bg-gray-200 active:shadow-inner disabled:opacity-40 disabled:pointer-events-none"
           >
-            {deploying ? 'Deploying…' : `Deploy (${queue.length} tracks)`}
+            {deploying
+              ? 'Deploying…'
+              : `Deploy (${queue.length} track${queue.length === 1 ? '' : 's'} · ${formatDuration(queue.reduce((s, t) => s + t.duration_ms, 0))})`}
           </button>
         </div>
       </div>

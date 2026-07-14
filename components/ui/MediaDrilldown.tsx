@@ -144,11 +144,15 @@ export default function MediaDrilldown({ item, onBack, onTag, onTagAll }: {
             </div>
           )}
         </div>
-        <TagButton
-          onClick={tagAll}
-          disabled={loading || loadingAll}
-          className={`ml-auto mr-6 w-16 h-16 shrink-0 disabled:opacity-50 ${loadingAll ? 'animate-pulse' : ''}`}
-        />
+        <div className="ml-auto mr-40 shrink-0 flex flex-col items-center gap-1">
+          <TagButton
+            multi
+            onClick={tagAll}
+            disabled={loading || loadingAll}
+            className={`w-20 h-20 disabled:opacity-50 ${loadingAll ? 'animate-pulse' : ''}`}
+          />
+          <span className="text-xs text-gray-400 mt-2">tag all</span>
+        </div>
       </div>
 
       {error ? (

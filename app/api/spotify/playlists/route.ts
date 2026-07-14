@@ -1,24 +1,29 @@
 import { spotifyFetch } from '@/lib/spotify/fetch'
 import { SpotifyError } from '@/types/spotify'
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 // keep in sync with PLAYLIST_NAME in playlists/deploy/route.ts (route files can't export extra consts)
 const DEPLOY_PLAYLIST_NAME = 'dndj queue'
 
-export async function GET() {
+type PlaylistItem = { name?: string; owner?: { id?: string } }
+
+export async function GET(request: NextRequest) {
+  const offset = Math.max(0, parseInt(request.nextUrl.searchParams.get('offset') ?? '0', 10) || 0)
   try {
-    const [meRes, listRes] = await Promise.all([
-      spotifyFetch('/v1/me'),
-      spotifyFetch('/v1/me/playlists?limit=20'),
+    const [me, data] = await Promise.all([
+      spotifyFetch('/v1/me').then(r => r.json()),
+      spotifyFetch(`/v1/me/playlists?limit=50&offset=${offset}`).then(r => r.json()),
     ])
-    const me = await meRes.json()
-    const data = await listRes.json()
+
     // hide followed playlists (their items aren't ours to see) and the app-managed deploy queue
-    data.items = (data.items ?? []).filter(
-      (p: { name?: string; owner?: { id?: string } }) =>
-        p?.owner?.id === me.id && p?.name?.toLowerCase() !== DEPLOY_PLAYLIST_NAME
+    const owned = (data.items ?? []).filter(
+      (p: PlaylistItem) => p?.owner?.id === me.id && p?.name?.toLowerCase() !== DEPLOY_PLAYLIST_NAME
     )
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({
+      success: true,
+      // nextOffset advances by the raw page size, not owned.length: filtering shrinks pages
+      data: { items: owned, next: data.next != null, nextOffset: offset + (data.items?.length ?? 0) },
+    })
   } catch (err) {
     if (err instanceof SpotifyError) {
       return NextResponse.json(

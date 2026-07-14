@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import CategoryFilterChips from '@/components/views/tags/CategoryFilterChips'
 import EmptyState, { type TagPreset } from '@/components/views/tags/EmptyState'
@@ -28,6 +29,7 @@ const supabase = createClient()
 const SPARSE_MAX = 3
 
 export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }) {
+  const queryClient = useQueryClient()
   const uid = useUid()
   const loaded = useTagDataLoaded()
   const allTags = useAllTagsWithCount()
@@ -80,7 +82,7 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
     return data
   }
 
-  const reorderCategory = (fromId: string, toId: string) => {
+  const reorderCategory = async (fromId: string, toId: string) => {
     const fromIdx = categories.findIndex(c => c.id === fromId)
     const toIdx = categories.findIndex(c => c.id === toId)
     if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
@@ -88,12 +90,16 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
     const [item] = reordered.splice(fromIdx, 1)
     reordered.splice(toIdx, 0, item)
     reordered.forEach((cat, i) => patchCategory(cat.id, { sort_order: i }))
-    Promise.all(reordered.map((cat, i) =>
+    const results = await Promise.all(reordered.map((cat, i) =>
       supabase.from('tag_categories').update({ sort_order: i }).eq('id', cat.id)
     ))
+    if (results.some(r => r.error)) {
+      console.error('category reorder failed:', results.find(r => r.error)?.error)
+      void queryClient.refetchQueries({ queryKey: ['categories', uid] })
+    }
   }
 
-  const reorderTag = (fromId: string, toId: string) => {
+  const reorderTag = async (fromId: string, toId: string) => {
     const fromTag = allTags.find(t => t.id === fromId)
     if (!fromTag) return
     const group = allTags
@@ -106,9 +112,13 @@ export default function TagsView({ onOpenSearch }: { onOpenSearch?: () => void }
     const [item] = reordered.splice(fromIdx, 1)
     reordered.splice(toIdx, 0, item)
     reordered.forEach((tag, i) => patchTag(tag.id, { sort_order: i }))
-    Promise.all(reordered.map((tag, i) =>
+    const results = await Promise.all(reordered.map((tag, i) =>
       supabase.from('tags').update({ sort_order: i }).eq('id', tag.id)
     ))
+    if (results.some(r => r.error)) {
+      console.error('tag reorder failed:', results.find(r => r.error)?.error)
+      void queryClient.refetchQueries({ queryKey: ['tags', uid] })
+    }
   }
 
   const deleteTag = async (id: string) => {
