@@ -68,6 +68,9 @@ export function useTagColor(id: string): string | null {
 export function useTrackTagIds(spotifyId: string | null | undefined): string[] {
   return useContext(TagDataContext).trackTags[spotifyId ?? ''] ?? []
 }
+export function useTrackTagsMap(): Record<string, string[]> {
+  return useContext(TagDataContext).trackTags
+}
 export function useAllTags(): Tag[] {
   return Object.values(useContext(TagDataContext).tags)
 }

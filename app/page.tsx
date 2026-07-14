@@ -16,7 +16,7 @@ type View = typeof VIEWS[number]
 
 export default function Home() {
   const { player, deviceId, isReady, playbackState, error } = useSpotifyPlayer()
-  const [activeView, setActiveView] = useState<View>('Search')
+  const [activeView, setActiveView] = useState<View>('Tags')
   const [fallbackTrack, setFallbackTrack] = useState<DisplayTrack | null>(null)
   const [quickTagTrack, setQuickTagTrack] = useState<Track | null>(null)
 

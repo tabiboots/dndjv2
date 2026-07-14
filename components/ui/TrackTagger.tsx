@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Track } from '@/types/spotify'
 import { tagColor } from '@/components/ui/TagChip'
-import { useAllTags, useCategories, useTagColor, useTagMutators, useUid, type Tag, type TrackTagRow } from '@/lib/contexts/TagDataContext'
+import { useAllTags, useCategories, useTagColor, useTagMutators, useTrackTagsMap, useUid, type Tag } from '@/lib/contexts/TagDataContext'
 import type { DBTrack } from '@/lib/spotify/dbTrack'
 
 const supabase = createClient()
@@ -29,31 +29,39 @@ function Chip({ tag, active, onClick }: { tag: Tag; active: boolean; onClick: ()
   )
 }
 
-export default function TrackTagger({ track, onClose }: { track: Track; onClose: () => void }) {
-  const art = track.album.images?.[0]?.url
+const toDBTrack = (t: Track): DBTrack => ({
+  spotify_id: t.id!,
+  name: t.name,
+  artist_names: t.artists.map(a => a.name),
+  album_art_url: t.album.images?.[0]?.url ?? null,
+  duration_ms: t.duration_ms,
+  uri: t.uri,
+})
+
+const chunk = <T,>(arr: T[], n: number): T[][] =>
+  Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, (i + 1) * n))
+
+export default function TrackTagger({ tracks, cover, onClose }: { tracks: Track[]; cover?: string; onClose: () => void }) {
   const userId = useUid()
   const allTags = useAllTags()
   const categories = useCategories()
+  const trackTagsMap = useTrackTagsMap()
   const { addTagLocal, addTrackTagLocal, removeTrackTagLocal } = useTagMutators()
 
-  const dbTrack: DBTrack = {
-    spotify_id: track.id!,
-    name: track.name,
-    artist_names: track.artists.map(a => a.name),
-    album_art_url: track.album.images?.[0]?.url ?? null,
-    duration_ms: track.duration_ms,
-    uri: track.uri,
-  }
+  // skip local files (null id) and dedupe: playlists can repeat a track
+  const taggable = useMemo(() => {
+    const seen = new Set<string>()
+    return tracks.filter(t => { if (!t.id || seen.has(t.id)) return false; seen.add(t.id); return true })
+  }, [tracks])
+  const ids = taggable.map(t => t.id!)
 
-  const [applied, setApplied] = useState<Set<string>>(new Set())
+  const single = taggable.length === 1 ? taggable[0] : null
+  const art = single ? single.album.images?.[0]?.url : cover ?? tracks[0]?.album.images?.[0]?.url
+
+  // applied = every selected track has the tag (context is optimistically updated by the mutators below)
+  const isApplied = (tagId: string) => ids.length > 0 && ids.every(id => trackTagsMap[id]?.includes(tagId))
+
   const [filter, setFilter] = useState('')
-
-  useEffect(() => {
-    if (!userId || !track.id) return
-    supabase.from('track_tags').select('tag_id')
-      .eq('spotify_id', track.id).eq('user_id', userId)
-      .then(({ data }) => setApplied(new Set((data ?? []).map(r => r.tag_id))))
-  }, [userId, track.id])
 
   const groups = useMemo(() => {
     const q = filter.toLowerCase()
@@ -66,58 +74,48 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
     return result
   }, [allTags, categories, filter])
 
-  const upsertTrack = async () => {
+  const applyTag = async (tagId: string) => {
+    if (!userId) return
+    const missing = taggable.filter(t => !trackTagsMap[t.id!]?.includes(tagId))
+    if (missing.length === 0) return
     const { error } = await supabase.from('tracks').upsert(
-      {
-        spotify_id: track.id!,
-        name: track.name,
-        artist_names: track.artists.map(a => a.name),
-        album_art_url: track.album.images?.[0]?.url ?? null,
-        duration_ms: track.duration_ms,
-        uri: track.uri,
-      },
+      missing.map(toDBTrack),
       { onConflict: 'spotify_id', ignoreDuplicates: true }
     )
-    if (error) console.error('tracks upsert:', error)
-    return error
+    if (error) { console.error('tracks upsert:', error); return }
+    const tagged_at = new Date().toISOString()
+    const { error: ttErr } = await supabase.from('track_tags').upsert(
+      missing.map(t => ({ tag_id: tagId, spotify_id: t.id!, user_id: userId, tagged_at })),
+      { onConflict: 'spotify_id,tag_id,user_id', ignoreDuplicates: true }
+    )
+    if (ttErr) { console.error('track_tags upsert:', ttErr); return }
+    for (const t of missing) addTrackTagLocal({ tag_id: tagId, spotify_id: t.id!, tagged_at }, toDBTrack(t))
   }
 
-  const toggle = async (tag: Tag) => {
-    if (!userId || !track.id) return
-    if (applied.has(tag.id)) {
-      await supabase.from('track_tags').delete()
-        .eq('tag_id', tag.id).eq('spotify_id', track.id).eq('user_id', userId)
-      setApplied(prev => { const s = new Set(prev); s.delete(tag.id); return s })
-      removeTrackTagLocal(tag.id, track.id!)
-    } else {
-      const err = await upsertTrack()
-      if (err) return
-      const tagged_at = new Date().toISOString()
-      const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: tag.id, spotify_id: track.id, user_id: userId, tagged_at })
-      if (ttErr) { console.error('track_tags insert:', ttErr); return }
-      setApplied(prev => new Set([...prev, tag.id]))
-      addTrackTagLocal({ tag_id: tag.id, spotify_id: track.id!, tagged_at }, dbTrack)
+  const removeTag = async (tagId: string) => {
+    if (!userId) return
+    // chunk .in() filters to keep PostgREST URLs under length limits
+    for (const idChunk of chunk(ids, 100)) {
+      const { error } = await supabase.from('track_tags').delete()
+        .eq('tag_id', tagId).eq('user_id', userId).in('spotify_id', idChunk)
+      if (error) { console.error('track_tags delete:', error); return }
     }
+    for (const id of ids) removeTrackTagLocal(tagId, id)
   }
+
+  const toggle = (tag: Tag) => isApplied(tag.id) ? removeTag(tag.id) : applyTag(tag.id)
 
   const createTag = async (e: React.FormEvent) => {
     e.preventDefault()
     const name = filter.trim()
-    if (!userId || !name || !track.id) return
+    if (!userId || !name || ids.length === 0) return
 
     const color = `hsl(${Math.floor(Math.random() * 360)}, 65%, 55%)`
     const { data } = await supabase.from('tags').insert({ name, color, user_id: userId }).select('id,name,color,sort_order').single()
     if (!data) return
     addTagLocal({ ...data, category_id: null })
 
-    const err = await upsertTrack()
-    if (err) return
-    const tagged_at = new Date().toISOString()
-    const { error: ttErr } = await supabase.from('track_tags').insert({ tag_id: data.id, spotify_id: track.id, user_id: userId, tagged_at })
-    if (ttErr) { console.error('track_tags insert (create):', ttErr); return }
-
-    setApplied(prev => new Set([...prev, data.id]))
-    addTrackTagLocal({ tag_id: data.id, spotify_id: track.id!, tagged_at }, dbTrack)
+    await applyTag(data.id)
     setFilter('')
   }
 
@@ -131,8 +129,10 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
           </svg>
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-black truncate">{track.name}</p>
-          <p className="text-xs text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
+          <p className="text-sm font-semibold text-black truncate">{single ? single.name : `${taggable.length} tracks`}</p>
+          <p className="text-xs text-gray-400 truncate">
+            {single ? single.artists.map(a => a.name).join(', ') : 'tags apply to every track'}
+          </p>
         </div>
       </div>
       <div className="flex justify-around gap-2">
@@ -149,7 +149,7 @@ export default function TrackTagger({ track, onClose }: { track: Track; onClose:
             <p className="text-xs text-gray-400">{group.label}</p>
             <div className="flex flex-wrap gap-1.5">
               {group.tags.map(tag => (
-                <Chip key={tag.id} tag={tag} active={applied.has(tag.id)} onClick={() => toggle(tag)} />
+                <Chip key={tag.id} tag={tag} active={isApplied(tag.id)} onClick={() => toggle(tag)} />
               ))}
             </div>
           </div>

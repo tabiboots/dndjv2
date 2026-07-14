@@ -18,7 +18,7 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [taggedTrack, setTaggedTrack] = useState<Track | null>(null)
+  const [taggedTracks, setTaggedTracks] = useState<Track[] | null>(null)
   const [selected, setSelected] = useState<Album | Playlist | null>(null)
   const { playingUri, playTrack: ctxPlayTrack, pauseTrack } = usePlayback()
 
@@ -47,7 +47,7 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
   const [prevQuickTag, setPrevQuickTag] = useState(quickTagTrack)
   if (quickTagTrack !== prevQuickTag) {
     setPrevQuickTag(quickTagTrack)
-    if (quickTagTrack) setTaggedTrack(quickTagTrack)
+    if (quickTagTrack) setTaggedTracks([quickTagTrack])
   }
 
   const fetchPage = async (q: string, off: number, replace: boolean) => {
@@ -150,11 +150,11 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
       {error && <p className="text-xs text-red-400 px-3 py-2">{error}</p>}
 
-      {(selected || loading || tracks.length > 0 || taggedTrack) && (
+      {(selected || loading || tracks.length > 0 || taggedTracks) && (
         <div className="flex-1 flex flex-row overflow-hidden">
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ width: taggedTrack ? '70%' : '100%' }}>
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ width: taggedTracks ? '70%' : '100%' }}>
             {selected ? (
-              <MediaDrilldown item={selected} onBack={() => setSelected(null)} onTag={setTaggedTrack} />
+              <MediaDrilldown item={selected} onBack={() => setSelected(null)} onTag={t => setTaggedTracks([t])} onTagAll={setTaggedTracks} />
             ) : (
               <>
                 {query.trim().length >= 2 && (loading || albums.length > 0) && (
@@ -184,7 +184,7 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
                         onClick={t => playTrack(t, tracks)}
                         onPause={pauseTrack}
                       >
-                        <TagButton onClick={() => setTaggedTrack(track)} />
+                        <TagButton onClick={() => setTaggedTracks([track])} />
                       </SongChip>
                     ))
                   }
@@ -196,9 +196,15 @@ export default function SearchView({ visible, quickTagTrack }: { visible?: boole
 
           <div
             className="overflow-hidden transition-all duration-300 border-l border-gray-200 bg-white shrink-0"
-            style={{ width: taggedTrack ? 360 : 0 }}
+            style={{ width: taggedTracks ? 360 : 0 }}
           >
-            {taggedTrack && <TrackTagger track={taggedTrack} onClose={() => setTaggedTrack(null)} />}
+            {taggedTracks && (
+              <TrackTagger
+                tracks={taggedTracks}
+                cover={selected?.images?.[0]?.url}
+                onClose={() => setTaggedTracks(null)}
+              />
+            )}
           </div>
         </div>
       )}
